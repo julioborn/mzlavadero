@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
 interface RecordCardProps {
@@ -128,7 +129,7 @@ export default function RecordCard({
       )}
 
       {/* Actions */}
-      {(canConfirm || canDelete) && (
+      {(canConfirm || canDelete || isOwner) && (
         <div className="mt-3 pt-3 flex flex-col gap-2" style={{ borderTop: "1px solid var(--border-subtle)" }}>
 
           {/* Confirm button */}
@@ -141,6 +142,17 @@ export default function RecordCard({
             >
               {confirming ? "Confirmando..." : "✓ Confirmar lavado"}
             </button>
+          )}
+
+          {/* Edit button (owner only) */}
+          {isOwner && (
+            <Link
+              href={`/owner/records/${record.id}/edit`}
+              className="block w-full py-2 rounded-xl text-sm font-semibold text-center"
+              style={{ background: "var(--bg-surface)", color: "var(--text-primary)", border: "1px solid var(--border-subtle)" }}
+            >
+              ✏️ Editar registro
+            </Link>
           )}
 
           {/* Delete button */}

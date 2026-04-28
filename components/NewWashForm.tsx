@@ -148,25 +148,29 @@ export default function NewWashForm() {
 
     setLoading(true);
 
-    // 1. Upsert client
-    let { data: client } = await supabase
-      .from("clients")
-      .select("id")
-      .eq("phone", phone)
-      .single();
-
-    if (!client) {
-      const { data: newClient, error: clientErr } = await supabase
+    // 1. Upsert client (solo si se ingresó teléfono)
+    let clientId: string | null = null;
+    if (phone.trim()) {
+      let { data: client } = await supabase
         .from("clients")
-        .insert({ phone })
         .select("id")
+        .eq("phone", phone.trim())
         .single();
-      if (clientErr || !newClient) {
-        setError("Error al guardar el cliente.");
-        setLoading(false);
-        return;
+
+      if (!client) {
+        const { data: newClient, error: clientErr } = await supabase
+          .from("clients")
+          .insert({ phone: phone.trim() })
+          .select("id")
+          .single();
+        if (clientErr || !newClient) {
+          setError("Error al guardar el cliente.");
+          setLoading(false);
+          return;
+        }
+        client = newClient;
       }
-      client = newClient;
+      clientId = client.id;
     }
 
     // 2. Upsert vehicle
@@ -191,10 +195,12 @@ export default function NewWashForm() {
       vehicle = newVehicle;
     }
 
-    // 3. Upsert client_vehicles link
-    await supabase
-      .from("client_vehicles")
-      .upsert({ client_id: client!.id, vehicle_id: vehicle!.id });
+    // 3. Upsert client_vehicles link (solo si hay cliente)
+    if (clientId) {
+      await supabase
+        .from("client_vehicles")
+        .upsert({ client_id: clientId, vehicle_id: vehicle!.id });
+    }
 
     // 4. Get current user
     const {
@@ -208,7 +214,7 @@ export default function NewWashForm() {
     // 6. Insert wash record
     const { error: recErr } = await supabase.from("wash_records").insert({
       employee_id: user!.id,
-      client_id: client!.id,
+      client_id: clientId,
       vehicle_id: vehicle!.id,
       wash_date: washDate,
       wash_time: washTime,
@@ -292,7 +298,7 @@ export default function NewWashForm() {
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
         {/* Phone */}
         <div ref={phoneRef} className="relative">
-          <label className="label">Teléfono del cliente</label>
+          <label className="label">Teléfono del cliente <span style={{ color: "var(--text-secondary)", fontWeight: 400 }}>(opcional)</span></label>
           <input
             type="tel"
             inputMode="numeric"
@@ -300,7 +306,6 @@ export default function NewWashForm() {
             placeholder="Ej: 1154321234"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            required
             autoComplete="off"
           />
           {showPhoneDrop && (
