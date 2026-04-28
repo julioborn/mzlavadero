@@ -50,7 +50,7 @@ export default function LoginPage() {
               className="object-cover w-full h-full"
               priority
             />
-          </div>
+          </div> 
           <h1
             className="text-2xl font-bold tracking-tight"
             style={{ color: "var(--text-primary)" }}

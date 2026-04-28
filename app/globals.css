@@ -1,5 +1,6 @@
 @import "tailwindcss";
 
+/* ── Tema oscuro (default) ── */
 :root {
   --bg-primary: #0d0d0d;
   --bg-surface: #1a1a1a;
@@ -11,6 +12,24 @@
   --success: #22c55e;
   --danger: #ef4444;
   --warning: #f5f5f5;
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-nav: rgba(255, 255, 255, 0.06);
+}
+
+/* ── Tema claro ── */
+:root[data-theme="light"] {
+  --bg-primary: #f2f2f2;
+  --bg-surface: #ffffff;
+  --bg-card: #e8e8e8;
+  --accent: #dc2626;
+  --accent-hover: #b91c1c;
+  --text-primary: #111111;
+  --text-secondary: #6b7280;
+  --success: #16a34a;
+  --danger: #dc2626;
+  --warning: #111111;
+  --border-subtle: rgba(0, 0, 0, 0.1);
+  --border-nav: rgba(0, 0, 0, 0.08);
 }
 
 @theme inline {
@@ -29,14 +48,16 @@ body {
   color: var(--text-primary);
   font-family: var(--font-sans), system-ui, sans-serif;
   -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.2s, color 0.2s;
 }
 
 input,
 textarea,
 select {
-  font-size: 16px !important; /* prevent iOS zoom */
+  font-size: 16px !important;
 }
 
+/* ── Botones ── */
 .btn-primary {
   background-color: var(--accent);
   color: white;
@@ -80,22 +101,25 @@ select {
   color: white;
 }
 
+/* ── Tarjetas ── */
 .card {
   background-color: var(--bg-surface);
   border-radius: 1rem;
   padding: 1.25rem;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--border-subtle);
+  transition: background-color 0.2s, border-color 0.2s;
 }
 
+/* ── Inputs ── */
 .input-field {
   background-color: var(--bg-card);
-  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  border: 1.5px solid var(--border-subtle);
   color: var(--text-primary);
   border-radius: 0.75rem;
   padding: 0.875rem 1rem;
   width: 100%;
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, background-color 0.2s;
 }
 
 .input-field:focus {
@@ -116,7 +140,7 @@ select {
 
 .page-header {
   background-color: var(--bg-surface);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  border-bottom: 1px solid var(--border-nav);
   padding: 1rem 1.25rem;
   display: flex;
   align-items: center;
@@ -126,7 +150,7 @@ select {
   z-index: 10;
 }
 
-/* Badges — esquema rojo/negro/blanco */
+/* ── Badges — tema oscuro ── */
 .badge-efectivo {
   background-color: rgba(220, 38, 38, 0.18);
   color: #f87171;
@@ -175,4 +199,35 @@ select {
   border-radius: 9999px;
   font-size: 0.75rem;
   font-weight: 600;
+}
+
+/* ── Badges — tema claro ── */
+:root[data-theme="light"] .badge-efectivo {
+  background-color: rgba(220, 38, 38, 0.1);
+  color: #b91c1c;
+  border: 1px solid rgba(220, 38, 38, 0.3);
+}
+
+:root[data-theme="light"] .badge-transferencia {
+  background-color: rgba(0, 0, 0, 0.06);
+  color: #374151;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+}
+
+:root[data-theme="light"] .badge-auto {
+  background-color: rgba(0, 0, 0, 0.05);
+  color: #4b5563;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+:root[data-theme="light"] .badge-camioneta {
+  background-color: rgba(220, 38, 38, 0.08);
+  color: #991b1b;
+  border: 1px solid rgba(220, 38, 38, 0.2);
+}
+
+:root[data-theme="light"] .badge-moto {
+  background-color: rgba(0, 0, 0, 0.04);
+  color: #6b7280;
+  border: 1px solid rgba(0, 0, 0, 0.1);
 }

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { useTheme } from "./ThemeProvider";
 import type { VehicleType, PaymentMethod } from "@/lib/types";
 
 interface LinkedVehicle {
@@ -32,6 +33,7 @@ function getToday() {
 export default function NewWashForm() {
   const router = useRouter();
   const supabase = createClient();
+  const { theme } = useTheme();
 
   // Phone autocomplete
   const [phone, setPhone] = useState("");
@@ -370,9 +372,15 @@ export default function NewWashForm() {
                 type="button"
                 className="py-4 rounded-xl font-semibold text-sm transition-all"
                 style={{
-                  background: paymentMethod === m ? (m === "efectivo" ? "rgba(220,38,38,0.2)" : "rgba(255,255,255,0.1)") : "var(--bg-card)",
-                  color: paymentMethod === m ? (m === "efectivo" ? "#f87171" : "#ffffff") : "var(--text-secondary)",
-                  border: paymentMethod === m ? `1.5px solid ${m === "efectivo" ? "#dc2626" : "rgba(255,255,255,0.5)"}` : "1.5px solid rgba(255,255,255,0.08)",
+                  background: paymentMethod === m
+                    ? (m === "efectivo" ? "rgba(220,38,38,0.2)" : theme === "dark" ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.07)")
+                    : "var(--bg-card)",
+                  color: paymentMethod === m
+                    ? (m === "efectivo" ? "#f87171" : "var(--text-primary)")
+                    : "var(--text-secondary)",
+                  border: paymentMethod === m
+                    ? `1.5px solid ${m === "efectivo" ? "#dc2626" : "var(--border-subtle)"}`
+                    : "1.5px solid var(--border-subtle)",
                 }}
                 onClick={() => setPaymentMethod(m)}
               >
