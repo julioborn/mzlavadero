@@ -39,10 +39,18 @@ export default function OwnerNav({ userName }: { userName: string }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => window.location.reload()}
+            aria-label="Recargar"
+            className="text-base w-8 h-8 flex items-center justify-center rounded-lg"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)" }}
+          >
+            🔄
+          </button>
+          <ThemeToggle />
           <span className="text-xs hidden sm:block" style={{ color: "var(--text-secondary)" }}>
             {userName}
           </span>
-          <ThemeToggle />
           <button
             onClick={logout}
             className="text-xs px-3 py-1.5 rounded-lg"

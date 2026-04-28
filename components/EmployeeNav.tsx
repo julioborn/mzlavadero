@@ -31,9 +31,14 @@ export default function EmployeeNav({ userName }: { userName: string }) {
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
-            {userName}
-          </span>
+          <button
+            onClick={() => window.location.reload()}
+            aria-label="Recargar"
+            className="text-base w-8 h-8 flex items-center justify-center rounded-lg"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)" }}
+          >
+            🔄
+          </button>
           <ThemeToggle />
           <button
             onClick={logout}
