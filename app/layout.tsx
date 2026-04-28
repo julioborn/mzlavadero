@@ -27,7 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="es" className={`${geist.variable} h-full`} suppressHydrationWarning>
       <head>
-        <link rel="apple-touch-icon" href="/mzlavaderologo.jpeg" />
+        <link rel="apple-touch-icon" href="/apple-icon.png" />
         {/* Anti-flash: aplica el tema guardado antes de renderizar */}
         <script
           dangerouslySetInnerHTML={{
