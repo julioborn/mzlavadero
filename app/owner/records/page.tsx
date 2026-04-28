@@ -8,7 +8,7 @@ const PAGE_SIZE = 15;
 export default async function OwnerRecords({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; method?: string; type?: string; date?: string }>;
+  searchParams: Promise<{ page?: string; method?: string; type?: string; date?: string; status?: string }>;
 }) {
   const params = await searchParams;
   const page = Math.max(1, parseInt(params.page ?? "1"));
@@ -39,6 +39,7 @@ export default async function OwnerRecords({
   if (params.method) query = query.eq("payment_method", params.method);
   if (params.date) query = query.eq("wash_date", params.date);
   if (vehicleIds) query = query.in("vehicle_id", vehicleIds);
+  if (params.status) query = query.eq("status", params.status);
 
   const { data: records, count } = await query.range(from, to);
 
@@ -49,6 +50,7 @@ export default async function OwnerRecords({
     if (params.method) p.method = params.method;
     if (params.type) p.type = params.type;
     if (params.date) p.date = params.date;
+    if (params.status) p.status = params.status;
     Object.assign(p, overrides);
     const filtered = Object.fromEntries(
       Object.entries(p).filter(([, v]) => v !== undefined && v !== "")
@@ -69,6 +71,25 @@ export default async function OwnerRecords({
       {/* Filters */}
       <div className="flex flex-wrap gap-2 mb-5">
         <DateFilterForm defaultValue={params.date} extraParams={extraParams} />
+
+        {/* Estado */}
+        {[
+          { value: "pending", label: "🕐 Pendientes" },
+          { value: "completed", label: "✅ Realizados" },
+        ].map((s) => (
+          <Link
+            key={s.value}
+            href={buildUrl({ status: params.status === s.value ? undefined : s.value })}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium"
+            style={{
+              background: params.status === s.value ? (s.value === "pending" ? "rgba(245,158,11,0.2)" : "rgba(34,197,94,0.15)") : "var(--bg-surface)",
+              color: params.status === s.value ? (s.value === "pending" ? "#f59e0b" : "#4ade80") : "var(--text-secondary)",
+              border: params.status === s.value ? `1px solid ${s.value === "pending" ? "rgba(245,158,11,0.4)" : "rgba(34,197,94,0.3)"}` : "1px solid transparent",
+            }}
+          >
+            {s.label}
+          </Link>
+        ))}
 
         {["efectivo", "transferencia"].map((m) => (
           <Link
@@ -98,7 +119,7 @@ export default async function OwnerRecords({
           </Link>
         ))}
 
-        {(params.method || params.type || params.date) && (
+        {(params.method || params.type || params.date || params.status) && (
           <Link
             href="/owner/records"
             className="px-3 py-1.5 rounded-lg text-xs font-medium"

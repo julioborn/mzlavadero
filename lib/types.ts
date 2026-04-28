@@ -1,6 +1,7 @@
 export type Role = "owner" | "employee";
 export type VehicleType = "auto" | "camioneta" | "moto";
 export type PaymentMethod = "efectivo" | "transferencia";
+export type WashStatus = "pending" | "completed";
 
 export interface Profile {
   id: string;
@@ -37,6 +38,7 @@ export interface WashRecord {
   payment_method: PaymentMethod;
   amount: number;
   detail: string | null;
+  status: WashStatus;
   created_at: string;
   // joined
   client?: Client;

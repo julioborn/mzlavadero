@@ -201,7 +201,11 @@ export default function NewWashForm() {
       data: { user },
     } = await supabase.auth.getUser();
 
-    // 5. Insert wash record
+    // 5. Determinar estado: pendiente si la fecha/hora es futura
+    const washDateTime = new Date(`${washDate}T${washTime}:00`);
+    const status = washDateTime > new Date() ? "pending" : "completed";
+
+    // 6. Insert wash record
     const { error: recErr } = await supabase.from("wash_records").insert({
       employee_id: user!.id,
       client_id: client!.id,
@@ -211,6 +215,7 @@ export default function NewWashForm() {
       payment_method: paymentMethod,
       amount: parseFloat(amount),
       detail: detail.trim() || null,
+      status,
     });
 
     if (recErr) {
