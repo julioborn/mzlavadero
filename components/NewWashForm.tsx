@@ -141,7 +141,7 @@ export default function NewWashForm() {
       setError("Ingresá la patente.");
       return;
     }
-    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+    if (!amount || isNaN(parseInt(amount)) || parseInt(amount) <= 0) {
       setError("Ingresá un monto válido.");
       return;
     }
@@ -213,7 +213,7 @@ export default function NewWashForm() {
       wash_date: washDate,
       wash_time: washTime,
       payment_method: paymentMethod,
-      amount: parseFloat(amount),
+      amount: parseInt(amount),
       detail: detail.trim() || null,
       status,
     });
@@ -399,16 +399,19 @@ export default function NewWashForm() {
         <div>
           <label className="label">Monto ($)</label>
           <input
-            type="number"
-            className="input-field"
-            placeholder="0"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            required
-            min="0"
-            step="1"
+            type="text"
             inputMode="numeric"
+            className="input-field"
+            placeholder="Ej: 20000"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))}
+            required
           />
+          {amount && (
+            <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
+              = ${parseInt(amount).toLocaleString("es-AR")}
+            </p>
+          )}
         </div>
 
         {/* Vehicle type */}
