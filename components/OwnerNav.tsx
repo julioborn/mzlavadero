@@ -39,10 +39,10 @@ export default function OwnerNav({ userName }: { userName: string }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <ThemeToggle />
           <span className="text-xs hidden sm:block" style={{ color: "var(--text-secondary)" }}>
             {userName}
           </span>
+          <ThemeToggle />
           <button
             onClick={logout}
             className="text-xs px-3 py-1.5 rounded-lg"

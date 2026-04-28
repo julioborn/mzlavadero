@@ -26,18 +26,15 @@ export default function EmployeeNav({ userName }: { userName: string }) {
         }}
       >
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg overflow-hidden">
-            <Image src="/mzlavaderologo.jpeg" alt="MZ" width={32} height={32} className="object-cover" />
-          </div>
           <span className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>
             MZ Lavadero
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <ThemeToggle />
           <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
             {userName}
           </span>
+          <ThemeToggle />
           <button
             onClick={logout}
             className="text-xs px-3 py-1.5 rounded-lg"

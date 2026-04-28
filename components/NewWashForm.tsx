@@ -487,7 +487,7 @@ export default function NewWashForm() {
           </p>
         )}
 
-        <button type="submit" className="btn-primary py-5 text-lg mt-1" disabled={loading}>
+        <button type="submit" className="btn-primary py-5 text-lg mb-10" disabled={loading}>
           {loading ? "Guardando..." : "✓ Confirmar Lavado"}
         </button>
       </form>
