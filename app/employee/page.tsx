@@ -8,7 +8,6 @@ export default async function EmployeeDashboard() {
 
   const today = new Date().toISOString().split("T")[0];
 
-  // Lavados pendientes (todos, sin paginación — suelen ser pocos)
   const { data: pending } = await supabase
     .from("wash_records")
     .select(`*, clients(phone), vehicles(plate, type), profiles(name)`)
@@ -16,7 +15,6 @@ export default async function EmployeeDashboard() {
     .order("wash_date", { ascending: true })
     .order("wash_time", { ascending: true });
 
-  // Últimos 5 realizados
   const { data: recent } = await supabase
     .from("wash_records")
     .select(`*, clients(phone), vehicles(plate, type), profiles(name)`)
@@ -33,35 +31,29 @@ export default async function EmployeeDashboard() {
 
   return (
     <div className="px-4 py-6 max-w-xl mx-auto">
-      {/* Stats mini */}
+
+      {/* Stat card */}
       <div className="card mb-6 flex items-center justify-between">
         <div>
-          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-            Lavados realizados hoy
+          <p className="text-xs font-semibold uppercase tracking-widest mb-1"
+            style={{ color: "var(--text-secondary)" }}>
+            Realizados hoy
           </p>
-          <p className="text-3xl font-bold" style={{ color: "var(--accent)" }}>
+          <p className="text-4xl font-bold leading-none" style={{ color: "var(--accent)" }}>
             {todayCount ?? 0}
           </p>
         </div>
-        <div className="text-4xl">🚗</div>
       </div>
-
-      {/* New wash button */}
-      <Link href="/employee/new" className="btn-primary mb-8 block text-center text-lg py-5 no-underline">
-        ＋ Registrar Lavado
-      </Link>
 
       {/* Pendientes */}
       {pending && pending.length > 0 && (
         <div className="mb-8">
           <div className="flex items-center gap-2 mb-3">
             <h2 className="font-semibold text-base" style={{ color: "var(--text-primary)" }}>
-              🕐 Pendientes
+              Pendientes
             </h2>
-            <span
-              className="text-xs font-bold px-2 py-0.5 rounded-full"
-              style={{ background: "rgba(245,158,11,0.2)", color: "#f59e0b" }}
-            >
+            <span className="text-xs font-bold px-2 py-0.5 rounded-full"
+              style={{ background: "rgba(245,158,11,0.18)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.3)" }}>
               {pending.length}
             </span>
           </div>
@@ -76,9 +68,11 @@ export default async function EmployeeDashboard() {
       {/* Últimos realizados */}
       <div className="flex items-center justify-between mb-3">
         <h2 className="font-semibold text-base" style={{ color: "var(--text-primary)" }}>
-          ✅ Últimos realizados
+          Últimos realizados
         </h2>
-        <Link href="/employee/history" className="text-sm" style={{ color: "var(--accent)" }}>
+        <Link href="/employee/history"
+          className="text-xs font-semibold"
+          style={{ color: "var(--accent)" }}>
           Ver todo →
         </Link>
       </div>
@@ -90,9 +84,21 @@ export default async function EmployeeDashboard() {
           ))}
         </div>
       ) : (
-        <div className="card text-center py-10" style={{ color: "var(--text-secondary)" }}>
-          <p className="text-4xl mb-3">🧼</p>
-          <p>Todavía no hay lavados realizados.</p>
+        <div className="card text-center py-12" style={{ color: "var(--text-secondary)" }}>
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+            style={{ background: "var(--bg-elevated)" }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+              style={{ color: "var(--text-secondary)" }}>
+              <path d="M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h11a2 2 0 012 2v3" />
+              <rect x="9" y="11" width="14" height="10" rx="2" />
+              <circle cx="12" cy="16" r="1" />
+            </svg>
+          </div>
+          <p className="font-medium text-sm">Todavía no hay lavados registrados.</p>
+          <p className="text-xs mt-1" style={{ color: "var(--text-secondary)", opacity: 0.7 }}>
+            Usá el botón + para registrar uno.
+          </p>
         </div>
       )}
     </div>

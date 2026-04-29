@@ -30,7 +30,13 @@ function getToday() {
   return new Date().toISOString().split("T")[0];
 }
 
-export default function NewWashForm() {
+export default function NewWashForm({
+  backHref = "/employee",
+  homeHref = "/employee",
+}: {
+  backHref?: string;
+  homeHref?: string;
+}) {
   const router = useRouter();
   const supabase = createClient();
   const { theme } = useTheme();
@@ -264,7 +270,7 @@ export default function NewWashForm() {
               Registrar otro lavado
             </button>
             <Link
-              href="/employee"
+              href={homeHref}
               className="text-center py-3 rounded-xl font-medium"
               style={{ color: "var(--text-secondary)" }}
             >
@@ -281,7 +287,7 @@ export default function NewWashForm() {
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <Link
-          href="/employee"
+          href={backHref}
           className="text-2xl leading-none"
           style={{ color: "var(--text-secondary)" }}
         >

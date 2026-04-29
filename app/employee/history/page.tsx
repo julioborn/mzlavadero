@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import RecordCard from "@/components/RecordCard";
+import CollapsibleSection from "@/components/CollapsibleSection";
 import Link from "next/link";
 
 const PAGE_SIZE = 10;
@@ -17,7 +18,6 @@ export default async function EmployeeHistory({
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Todos los pendientes (sin paginar)
   const { data: pending } = await supabase
     .from("wash_records")
     .select(`*, clients(phone), vehicles(plate, type), profiles(name)`)
@@ -25,7 +25,6 @@ export default async function EmployeeHistory({
     .order("wash_date", { ascending: true })
     .order("wash_time", { ascending: true });
 
-  // Realizados con paginación
   const { data: completed, count } = await supabase
     .from("wash_records")
     .select(`*, clients(phone), vehicles(plate, type), profiles(name)`, { count: "exact" })
@@ -38,31 +37,18 @@ export default async function EmployeeHistory({
 
   return (
     <div className="px-4 py-6 max-w-xl mx-auto">
-      <div className="flex items-center gap-3 mb-6">
-        <Link href="/employee" className="text-2xl leading-none" style={{ color: "var(--text-secondary)" }}>
-          ←
-        </Link>
-        <h1 className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>
-          Historial de lavados
-        </h1>
-      </div>
 
-      {/* Sección: Pendientes */}
-      <div className="mb-8">
-        <div className="flex items-center gap-2 mb-3">
-          <h2 className="font-semibold text-base" style={{ color: "var(--text-primary)" }}>
-            🕐 Pendientes
-          </h2>
-          {pending && pending.length > 0 && (
-            <span
-              className="text-xs font-bold px-2 py-0.5 rounded-full"
-              style={{ background: "rgba(245,158,11,0.2)", color: "#f59e0b" }}
-            >
-              {pending.length}
-            </span>
-          )}
-        </div>
+      <h1 className="text-xl font-bold mb-6" style={{ color: "var(--text-primary)" }}>
+        Historial
+      </h1>
 
+      {/* Pendientes */}
+      <CollapsibleSection
+        title="Pendientes"
+        count={pending?.length ?? 0}
+        defaultOpen={false}
+        countStyle={{ background: "rgba(245,158,11,0.15)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.25)" }}
+      >
         {pending && pending.length > 0 ? (
           <div className="flex flex-col gap-3">
             {pending.map((r) => (
@@ -71,22 +57,17 @@ export default async function EmployeeHistory({
           </div>
         ) : (
           <div className="card text-center py-6" style={{ color: "var(--text-secondary)" }}>
-            <p>No hay lavados pendientes.</p>
+            <p className="text-sm font-medium">Sin lavados pendientes.</p>
           </div>
         )}
-      </div>
+      </CollapsibleSection>
 
-      {/* Sección: Realizados */}
-      <div>
-        <div className="flex items-center gap-2 mb-3">
-          <h2 className="font-semibold text-base" style={{ color: "var(--text-primary)" }}>
-            ✅ Realizados
-          </h2>
-          <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
-            {count ?? 0} en total
-          </span>
-        </div>
-
+      {/* Realizados */}
+      <CollapsibleSection
+        title="Realizados"
+        count={count ?? 0}
+        defaultOpen={false}
+      >
         {completed && completed.length > 0 ? (
           <>
             <div className="flex flex-col gap-3 mb-6">
@@ -96,25 +77,21 @@ export default async function EmployeeHistory({
             </div>
 
             {totalPages > 1 && (
-              <div className="flex items-center justify-center gap-3">
+              <div className="flex items-center justify-center gap-3 pb-2">
                 {page > 1 && (
-                  <Link
-                    href={`/employee/history?page=${page - 1}`}
-                    className="px-4 py-2 rounded-lg text-sm font-medium"
-                    style={{ background: "var(--bg-surface)", color: "var(--text-primary)" }}
-                  >
+                  <Link href={`/employee/history?page=${page - 1}`}
+                    className="px-4 py-2 rounded-xl text-sm font-medium"
+                    style={{ background: "var(--bg-surface)", color: "var(--text-primary)", border: "1px solid var(--border-subtle)" }}>
                     ← Anterior
                   </Link>
                 )}
-                <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
                   {page} / {totalPages}
                 </span>
                 {page < totalPages && (
-                  <Link
-                    href={`/employee/history?page=${page + 1}`}
-                    className="px-4 py-2 rounded-lg text-sm font-medium"
-                    style={{ background: "var(--bg-surface)", color: "var(--text-primary)" }}
-                  >
+                  <Link href={`/employee/history?page=${page + 1}`}
+                    className="px-4 py-2 rounded-xl text-sm font-medium"
+                    style={{ background: "var(--bg-surface)", color: "var(--text-primary)", border: "1px solid var(--border-subtle)" }}>
                     Siguiente →
                   </Link>
                 )}
@@ -122,12 +99,20 @@ export default async function EmployeeHistory({
             )}
           </>
         ) : (
-          <div className="card text-center py-6" style={{ color: "var(--text-secondary)" }}>
-            <p className="text-4xl mb-3">📋</p>
-            <p>No hay lavados realizados todavía.</p>
+          <div className="card text-center py-10" style={{ color: "var(--text-secondary)" }}>
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+              style={{ background: "var(--bg-elevated)" }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+                style={{ color: "var(--text-secondary)" }}>
+                <circle cx="12" cy="12" r="9" />
+                <polyline points="12 7 12 12 16 14" />
+              </svg>
+            </div>
+            <p className="font-medium text-sm">Sin lavados realizados todavía.</p>
           </div>
         )}
-      </div>
+      </CollapsibleSection>
     </div>
   );
 }
