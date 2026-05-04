@@ -74,7 +74,7 @@ export default async function OwnerRecords({
   const hasFilters = !!(params.method || params.type || params.date);
 
   return (
-    <div className="px-4 py-6 max-w-2xl mx-auto">
+    <div className="px-4 py-6 max-w-2xl mb-6 mx-auto">
 
       {/* Header */}
       <div className="flex items-center justify-between mb-5">

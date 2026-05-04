@@ -1,5 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import StatsBar from "@/components/StatsBar";
+import MonthSelector from "@/components/MonthSelector";
+
+const MONTHS_ES_FULL = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
 function waHref(phone: string): string {
   const d = phone.replace(/\D/g, "");
@@ -15,9 +18,22 @@ function startOfWeek() {
   return d.toISOString().split("T")[0];
 }
 
-function startOfMonth() {
+function currentYearMonth(): string {
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthBounds(yearMonth: string): { start: string; end: string } {
+  const [y, m] = yearMonth.split("-").map(Number);
+  const start = `${yearMonth}-01`;
+  const lastDay = new Date(y, m, 0).getDate();
+  const end = `${yearMonth}-${String(lastDay).padStart(2, "0")}`;
+  return { start, end };
+}
+
+function monthLabel(yearMonth: string): string {
+  const [year, month] = yearMonth.split("-");
+  return `${MONTHS_ES_FULL[parseInt(month) - 1]} ${year}`;
 }
 
 const WaIcon = () => (
@@ -26,20 +42,41 @@ const WaIcon = () => (
   </svg>
 );
 
-export default async function OwnerDashboard() {
+export default async function OwnerDashboard({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const { month: monthParam } = await searchParams;
+  const thisMonth = currentYearMonth();
+
   const supabase = await createClient();
+
+  const { data: allDates } = await supabase
+    .from("wash_records")
+    .select("wash_date");
+
+  const monthSet = new Set((allDates ?? []).map((r) => r.wash_date.slice(0, 7)));
+  monthSet.add(thisMonth);
+  const months = [...monthSet].sort().reverse();
+
+  const selectedMonth =
+    typeof monthParam === "string" && months.includes(monthParam) ? monthParam : thisMonth;
+  const isCurrentMonth = selectedMonth === thisMonth;
+
+  const { start: monthStart, end: monthEnd } = monthBounds(selectedMonth);
   const today = new Date().toISOString().split("T")[0];
   const weekStart = startOfWeek();
-  const monthStart = startOfMonth();
 
   const { data: monthRecords } = await supabase
     .from("wash_records")
     .select("wash_date, wash_time, payment_method, amount, vehicle_id, client_id, vehicles(type)")
-    .gte("wash_date", monthStart);
+    .gte("wash_date", monthStart)
+    .lte("wash_date", monthEnd);
 
   const allMonth = monthRecords ?? [];
-  const todayRecs = allMonth.filter((r) => r.wash_date === today);
-  const weekRecs = allMonth.filter((r) => r.wash_date >= weekStart);
+  const todayRecs = isCurrentMonth ? allMonth.filter((r) => r.wash_date === today) : [];
+  const weekRecs = isCurrentMonth ? allMonth.filter((r) => r.wash_date >= weekStart) : [];
 
   function sumAmount(arr: typeof allMonth) {
     return arr.reduce((acc, r) => acc + Number(r.amount), 0);
@@ -105,29 +142,44 @@ export default async function OwnerDashboard() {
   const sectionTitle = "text-xs font-semibold uppercase tracking-widest mb-4";
 
   return (
-    <div className="px-4 py-6 max-w-2xl mx-auto">
+    <div className="px-4 py-6 max-w-2xl mb-9 mx-auto">
+
+      <MonthSelector selected={selectedMonth} months={months} />
 
       {/* Stat cards */}
       <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: "var(--text-secondary)" }}>
-        Este mes
+        {monthLabel(selectedMonth)}
       </p>
-      <div className="grid grid-cols-3 gap-2 mb-6">
-        {[
-          { label: "Hoy",        ...stats.today },
-          { label: "Semana",     ...stats.week },
-          { label: "Mes",        ...stats.month },
-        ].map((s) => (
-          <div key={s.label} className="card text-center py-4 px-1">
-            <p className="text-xs mb-1.5" style={{ color: "var(--text-secondary)" }}>{s.label}</p>
-            <p className="text-lg font-bold leading-tight" style={{ color: "var(--warning)" }}>
-              ${s.revenue.toLocaleString("es-AR")}
-            </p>
-            <p className="text-xs mt-1.5 font-medium" style={{ color: "var(--text-secondary)" }}>
-              {s.count} lavados
-            </p>
-          </div>
-        ))}
-      </div>
+
+      {isCurrentMonth ? (
+        <div className="grid grid-cols-3 gap-2 mb-6">
+          {[
+            { label: "Hoy",    ...stats.today },
+            { label: "Semana", ...stats.week },
+            { label: "Mes",    ...stats.month },
+          ].map((s) => (
+            <div key={s.label} className="card text-center py-4 px-1">
+              <p className="text-xs mb-1.5" style={{ color: "var(--text-secondary)" }}>{s.label}</p>
+              <p className="text-lg font-bold leading-tight" style={{ color: "var(--warning)" }}>
+                ${s.revenue.toLocaleString("es-AR")}
+              </p>
+              <p className="text-xs mt-1.5 font-medium" style={{ color: "var(--text-secondary)" }}>
+                {s.count} lavados
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="card text-center py-5 mb-6">
+          <p className="text-xs mb-1.5" style={{ color: "var(--text-secondary)" }}>Total del mes</p>
+          <p className="text-2xl font-bold leading-tight" style={{ color: "var(--warning)" }}>
+            ${stats.month.revenue.toLocaleString("es-AR")}
+          </p>
+          <p className="text-xs mt-1.5 font-medium" style={{ color: "var(--text-secondary)" }}>
+            {stats.month.count} lavados
+          </p>
+        </div>
+      )}
 
       {/* Vehicle breakdown */}
       <div className="card mb-3">

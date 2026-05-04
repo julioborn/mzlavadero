@@ -39,7 +39,7 @@ export default function OwnerNav({ userName }: { userName: string }) {
   }
 
   const tabs = [
-    { href: "/owner",         label: "Stats",     Icon: IconStats,   match: (p: string) => p === "/owner" },
+    { href: "/owner",         label: "Estadísticas", Icon: IconStats,   match: (p: string) => p === "/owner" },
     { href: "/owner/records", label: "Registros", Icon: IconRecords, match: (p: string) => p.startsWith("/owner/records") || p.startsWith("/owner/clients") },
   ];
 
