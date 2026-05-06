@@ -26,7 +26,7 @@ export default function DateRangePicker({ from, to }: { from?: string; to?: stri
       <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: "var(--text-secondary)" }}>
         Período personalizado
       </p>
-      <div className="grid grid-cols-2 gap-3 mb-3">
+      <div className="flex flex-col gap-3 mb-3">
         <div>
           <p className="text-xs font-semibold mb-1.5" style={{ color: "var(--text-secondary)" }}>Desde</p>
           <input
