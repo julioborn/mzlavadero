@@ -130,7 +130,6 @@ export default function OwnerNav({ userName }: { userName: string }) {
         })()}
       </nav>
 
-      <div className="h-20" />
     </>
   );
 }

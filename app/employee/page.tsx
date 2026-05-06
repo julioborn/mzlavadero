@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import RecordCard from "@/components/RecordCard";
+import QRModal from "@/components/QRModal";
 
 export default async function EmployeeDashboard() {
   const supabase = await createClient();
@@ -33,7 +34,7 @@ export default async function EmployeeDashboard() {
     <div className="px-4 py-6 max-w-xl mx-auto">
 
       {/* Stat card */}
-      <div className="card mb-6 flex items-center justify-between">
+      <div className="card mb-3 flex items-center justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest mb-1"
             style={{ color: "var(--text-secondary)" }}>
@@ -43,6 +44,11 @@ export default async function EmployeeDashboard() {
             {todayCount ?? 0}
           </p>
         </div>
+      </div>
+
+      {/* QR Button */}
+      <div className="mb-6">
+        <QRModal />
       </div>
 
       {/* Pendientes */}

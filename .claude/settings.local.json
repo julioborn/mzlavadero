@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"C:\\\\PROYECTOS\\\\mzlavadero-build\" -Force)",
+      "Bash(Select-Object Name, FullName)",
+      "Bash(Get-ChildItem -Path \"C:\\\\PROYECTOS\\\\mzlavadero-build\\\\lib\" -Recurse)",
+      "Bash(Format-Table -AutoSize)",
+      "Bash(Get-ChildItem \"C:\\\\PROYECTOS\\\\mzlavadero-build\\\\public\")",
+      "Bash(Select-Object Name)",
+      "Bash(npx tsc *)"
+    ]
+  }
+}

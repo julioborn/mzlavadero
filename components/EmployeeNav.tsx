@@ -124,7 +124,6 @@ export default function EmployeeNav({ userName }: { userName: string }) {
         })}
       </nav>
 
-      <div className="h-20" />
     </>
   );
 }
