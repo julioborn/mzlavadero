@@ -7,7 +7,7 @@ export default async function EmployeeDashboard() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = new Date().toLocaleDateString("sv", { timeZone: "America/Argentina/Buenos_Aires" });
 
   const { data: pending } = await supabase
     .from("wash_records")

@@ -13,15 +13,20 @@ function waHref(phone: string): string {
   return `https://wa.me/54${local}`;
 }
 
+function nowInArgentina(): Date {
+  // Returns a Date whose local methods reflect Argentina time (UTC-3, no DST)
+  return new Date(new Date().toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" }));
+}
+
 function startOfWeek() {
-  const d = new Date();
+  const d = nowInArgentina();
   const day = d.getDay();
   d.setDate(d.getDate() - day + (day === 0 ? -6 : 1));
-  return d.toISOString().split("T")[0];
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function currentYearMonth(): string {
-  const d = new Date();
+  const d = nowInArgentina();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
@@ -83,7 +88,7 @@ export default async function OwnerDashboard({
   const dataStart = isRangeMode ? fromStr : monthBounds(selectedMonth).start;
   const dataEnd   = isRangeMode ? toStr   : monthBounds(selectedMonth).end;
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = new Date().toLocaleDateString("sv", { timeZone: "America/Argentina/Buenos_Aires" });
   const weekStart = startOfWeek();
 
   const { data: periodRecords } = await supabase
