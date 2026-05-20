@@ -27,7 +27,7 @@ function getNow() {
 }
 
 function getToday() {
-  return new Date().toISOString().split("T")[0];
+  return new Date().toLocaleDateString("sv", { timeZone: "America/Argentina/Buenos_Aires" });
 }
 
 export default function NewWashForm({
