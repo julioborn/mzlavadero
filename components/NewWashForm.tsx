@@ -30,6 +30,13 @@ function getToday() {
   return new Date().toLocaleDateString("sv", { timeZone: "America/Argentina/Buenos_Aires" });
 }
 
+function getMonthBounds(dateStr: string): { start: string; end: string } {
+  const ym = dateStr.slice(0, 7);
+  const [y, m] = ym.split("-").map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  return { start: `${ym}-01`, end: `${ym}-${String(lastDay).padStart(2, "0")}` };
+}
+
 export default function NewWashForm({
   backHref = "/employee",
   homeHref = "/employee",
@@ -59,10 +66,33 @@ export default function NewWashForm({
   const [showPlateDrop, setShowPlateDrop] = useState(false);
   const [detail, setDetail] = useState("");
 
+  // Membership
+  const [isMembership, setIsMembership] = useState(false);
+  const [membershipPrices, setMembershipPrices] = useState({ auto: 0, camioneta: 0 });
+  const [membershipCount, setMembershipCount] = useState<number | null>(null);
+  const [membershipClientId, setMembershipClientId] = useState<string | null>(null);
+
   // State
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+
+  // Load membership prices on mount
+  useEffect(() => {
+    supabase
+      .from("app_settings")
+      .select("membership_price_auto, membership_price_camioneta")
+      .eq("id", 1)
+      .single()
+      .then(({ data }) => {
+        if (data) {
+          setMembershipPrices({
+            auto: data.membership_price_auto,
+            camioneta: data.membership_price_camioneta,
+          });
+        }
+      });
+  }, []);
 
   // Phone search
   useEffect(() => {
@@ -95,16 +125,44 @@ export default function NewWashForm({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  async function checkClientMembership(clientId: string, date: string) {
+    const { start, end } = getMonthBounds(date);
+    const { data } = await supabase
+      .from("wash_records")
+      .select("id")
+      .eq("client_id", clientId)
+      .eq("is_membership", true)
+      .gte("wash_date", start)
+      .lte("wash_date", end);
+
+    const count = (data ?? []).length;
+    setMembershipCount(count);
+    if (count > 0 && count < 4) {
+      setIsMembership(true);
+      // Ya pagó la mensualidad este mes → lavados restantes son $0
+      setAmount("0");
+    }
+  }
+
   async function selectPhone(p: string) {
     setPhone(p);
     setShowPhoneDrop(false);
-    // Load linked vehicles
+
     const { data: clientData } = await supabase
       .from("clients")
       .select("id")
       .eq("phone", p)
       .single();
-    if (!clientData) return;
+
+    if (!clientData) {
+      setMembershipClientId(null);
+      setMembershipCount(null);
+      return;
+    }
+
+    setMembershipClientId(clientData.id);
+    await checkClientMembership(clientData.id, washDate);
+
     const { data: cvData } = await supabase
       .from("client_vehicles")
       .select("vehicles(id, plate, type)")
@@ -118,8 +176,32 @@ export default function NewWashForm({
 
   function selectVehicle(v: LinkedVehicle) {
     setPlate(v.plate.toUpperCase());
-    setVehicleType(v.type);
+    handleVehicleTypeSelect(v.type);
     setShowPlateDrop(false);
+  }
+
+  function getMembershipAutoFill(t: VehicleType): string {
+    // Si ya tiene lavados con membresía este mes → mensualidad ya pagada → $0
+    // Si es el primer lavado del mes con membresía → cobrar mensualidad
+    if (membershipCount !== null && membershipCount > 0) return "0";
+    const price = t === "auto" ? membershipPrices.auto : t === "camioneta" ? membershipPrices.camioneta : 0;
+    return price > 0 ? String(price) : "";
+  }
+
+  function handleVehicleTypeSelect(t: VehicleType) {
+    setVehicleType(t);
+    if (isMembership) {
+      const fill = getMembershipAutoFill(t);
+      if (fill !== "") setAmount(fill);
+    }
+  }
+
+  function handleMembershipChange(checked: boolean) {
+    setIsMembership(checked);
+    if (checked && vehicleType) {
+      const fill = getMembershipAutoFill(vehicleType as VehicleType);
+      if (fill !== "") setAmount(fill);
+    }
   }
 
   // Plate input: filter linked vehicles
@@ -151,10 +233,14 @@ export default function NewWashForm({
       setError("Ingresá un monto válido.");
       return;
     }
+    if (isMembership && !phone.trim()) {
+      setError("La membresía requiere el teléfono del cliente.");
+      return;
+    }
 
     setLoading(true);
 
-    // 1. Upsert client (solo si se ingresó teléfono)
+    // 1. Upsert client
     let clientId: string | null = null;
     if (phone.trim()) {
       let { data: client } = await supabase
@@ -179,7 +265,25 @@ export default function NewWashForm({
       clientId = client.id;
     }
 
-    // 2. Upsert vehicle
+    // 2. Membership validation
+    if (isMembership && clientId) {
+      const { start, end } = getMonthBounds(washDate);
+      const { data: membershipWashes } = await supabase
+        .from("wash_records")
+        .select("id")
+        .eq("client_id", clientId)
+        .eq("is_membership", true)
+        .gte("wash_date", start)
+        .lte("wash_date", end);
+
+      if ((membershipWashes ?? []).length >= 4) {
+        setError("Este cliente ya alcanzó el límite de 4 lavados con membresía este mes.");
+        setLoading(false);
+        return;
+      }
+    }
+
+    // 3. Upsert vehicle
     const plateUpper = plate.trim().toUpperCase();
     let { data: vehicle } = await supabase
       .from("vehicles")
@@ -201,23 +305,23 @@ export default function NewWashForm({
       vehicle = newVehicle;
     }
 
-    // 3. Upsert client_vehicles link (solo si hay cliente)
+    // 4. Upsert client_vehicles link
     if (clientId) {
       await supabase
         .from("client_vehicles")
         .upsert({ client_id: clientId, vehicle_id: vehicle!.id });
     }
 
-    // 4. Get current user
+    // 5. Get current user
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    // 5. Determinar estado: pendiente si la fecha/hora es futura
+    // 6. Determinar estado
     const washDateTime = new Date(`${washDate}T${washTime}:00`);
     const status = washDateTime > new Date() ? "pending" : "completed";
 
-    // 6. Insert wash record
+    // 7. Insert wash record
     const { error: recErr } = await supabase.from("wash_records").insert({
       employee_id: user!.id,
       client_id: clientId,
@@ -228,6 +332,7 @@ export default function NewWashForm({
       amount: parseInt(amount),
       detail: detail.trim() || null,
       status,
+      is_membership: isMembership,
     });
 
     if (recErr) {
@@ -265,6 +370,9 @@ export default function NewWashForm({
                 setVehicleType("");
                 setPlate("");
                 setDetail("");
+                setIsMembership(false);
+                setMembershipCount(null);
+                setMembershipClientId(null);
               }}
             >
               Registrar otro lavado
@@ -311,7 +419,16 @@ export default function NewWashForm({
             className="input-field"
             placeholder="Ej: 1154321234"
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              setPhone(val);
+              if (!val.trim()) {
+                setIsMembership(false);
+                setMembershipCount(null);
+                setMembershipClientId(null);
+                setLinkedVehicles([]);
+              }
+            }}
             autoComplete="off"
           />
           {showPhoneDrop && (
@@ -351,6 +468,57 @@ export default function NewWashForm({
               ))}
             </div>
           )}
+
+          {/* Membership status info — solo si tiene lavados con membresía este mes */}
+          {membershipCount !== null && membershipCount > 0 && (
+            <div
+              className="mt-2 flex items-center gap-2 text-xs px-3 py-2 rounded-lg"
+              style={{
+                background: membershipCount >= 4 ? "rgba(239,68,68,0.08)" : "rgba(139,92,246,0.08)",
+                color: membershipCount >= 4 ? "var(--danger)" : "#a78bfa",
+                border: `1px solid ${membershipCount >= 4 ? "rgba(239,68,68,0.2)" : "rgba(139,92,246,0.2)"}`,
+              }}
+            >
+              <span>{membershipCount >= 4 ? "❌" : "✨"}</span>
+              <span>
+                Membresía activa · {membershipCount}/4 lavados este mes
+                {membershipCount >= 4 && " · Límite alcanzado"}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Membership */}
+        <div>
+          <label className="label">Membresía</label>
+          <div
+            className="flex items-center gap-3 py-3 px-4 rounded-xl"
+            style={{
+              background: "var(--bg-card)",
+              border: `1.5px solid ${isMembership ? "rgba(139,92,246,0.4)" : "var(--border-subtle)"}`,
+              opacity: (!phone.trim() || (membershipCount !== null && membershipCount >= 4)) ? 0.6 : 1,
+            }}
+          >
+            <input
+              type="checkbox"
+              id="membership-check"
+              checked={isMembership}
+              onChange={(e) => handleMembershipChange(e.target.checked)}
+              disabled={!phone.trim() || (membershipCount !== null && membershipCount >= 4)}
+              className="w-5 h-5 cursor-pointer"
+              style={{ accentColor: "#8b5cf6" }}
+            />
+            <label htmlFor="membership-check" className="flex-1 cursor-pointer select-none">
+              <span className="text-sm font-semibold" style={{ color: isMembership ? "#a78bfa" : "var(--text-primary)" }}>
+                ✨ Con membresía
+              </span>
+              {!phone.trim() && (
+                <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                  Ingresá el teléfono para activar
+                </p>
+              )}
+            </label>
+          </div>
         </div>
 
         {/* Date & Time */}
@@ -415,12 +583,16 @@ export default function NewWashForm({
             className="input-field"
             placeholder="Ej: 20000"
             value={amount}
-            onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))}
+            onChange={(e) => !isMembership && setAmount(e.target.value.replace(/\D/g, ""))}
+            readOnly={isMembership}
+            style={isMembership ? { opacity: 0.6, cursor: "not-allowed" } : undefined}
             required
           />
           {amount && (
             <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
               = ${parseInt(amount).toLocaleString("es-AR")}
+              {isMembership && membershipCount !== null && membershipCount > 0 && " · Lavado incluido en membresía"}
+              {isMembership && (membershipCount === null || membershipCount === 0) && " · Mensualidad"}
             </p>
           )}
         </div>
@@ -439,7 +611,7 @@ export default function NewWashForm({
                   color: vehicleType === t ? "var(--accent)" : "var(--text-secondary)",
                   border: vehicleType === t ? "1.5px solid var(--accent)" : "1.5px solid rgba(255,255,255,0.08)",
                 }}
-                onClick={() => setVehicleType(t)}
+                onClick={() => handleVehicleTypeSelect(t)}
               >
                 <span className="text-2xl">
                   {t === "auto" ? "🚗" : t === "camioneta" ? "🚙" : "🏍️"}

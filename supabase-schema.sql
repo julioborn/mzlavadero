@@ -127,6 +127,46 @@ create trigger on_auth_user_created
   for each row execute procedure public.handle_new_user();
 
 -- ============================================================
+-- MIGRACIONES — Membresía
+-- ============================================================
+
+-- Campo is_membership en wash_records
+alter table wash_records add column if not exists is_membership boolean not null default false;
+
+-- Campo status (si no fue agregado previamente)
+alter table wash_records add column if not exists status text not null default 'completed'
+  check (status in ('pending', 'completed'));
+
+-- Tabla de configuración global (singleton, id siempre = 1)
+create table if not exists app_settings (
+  id int primary key default 1,
+  constraint app_settings_single check (id = 1),
+  membership_price_auto int not null default 0,
+  membership_price_camioneta int not null default 0,
+  updated_at timestamptz default now()
+);
+
+alter table app_settings enable row level security;
+
+create policy "app_settings_select" on app_settings for select
+  to authenticated using (true);
+
+create policy "app_settings_update" on app_settings for update
+  to authenticated using (
+    exists (select 1 from profiles where id = auth.uid() and role = 'owner')
+  );
+
+create policy "app_settings_insert" on app_settings for insert
+  to authenticated with check (
+    exists (select 1 from profiles where id = auth.uid() and role = 'owner')
+  );
+
+-- Fila por defecto
+insert into app_settings (id, membership_price_auto, membership_price_camioneta)
+values (1, 0, 0)
+on conflict (id) do nothing;
+
+-- ============================================================
 -- INSTRUCCIONES DE USO
 -- ============================================================
 --

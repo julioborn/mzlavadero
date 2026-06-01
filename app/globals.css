@@ -189,6 +189,23 @@ select {
   letter-spacing: 0.02em;
 }
 
+.badge-membership {
+  background-color: rgba(139, 92, 246, 0.15);
+  color: #a78bfa;
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  padding: 0.18rem 0.6rem;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+:root[data-theme="light"] .badge-membership {
+  background-color: rgba(109, 40, 217, 0.08);
+  color: #7c3aed;
+  border: 1px solid rgba(109, 40, 217, 0.2);
+}
+
 :root[data-theme="light"] .badge-efectivo,
 :root[data-theme="light"] .badge-transferencia,
 :root[data-theme="light"] .badge-auto,

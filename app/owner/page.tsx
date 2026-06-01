@@ -137,6 +137,20 @@ export default async function OwnerDashboard({
     .sort((a, b) => a.hour - b.hour);
   const maxHourCount = Math.max(...peakHours.map((h) => h.count), 1);
 
+  const DAY_LABELS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+  const WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
+  const dayOfWeekCounts: Record<number, number> = {};
+  allPeriod.forEach((r) => {
+    const [y, m, d] = r.wash_date.split("-").map(Number);
+    const dow = new Date(y, m - 1, d).getDay();
+    dayOfWeekCounts[dow] = (dayOfWeekCounts[dow] ?? 0) + 1;
+  });
+  const peakDays = WEEKDAY_ORDER.map((dow) => ({
+    label: DAY_LABELS[dow],
+    count: dayOfWeekCounts[dow] ?? 0,
+  }));
+  const maxDayCount = Math.max(...peakDays.map((d) => d.count), 1);
+
   const clientCounts: Record<string, number> = {};
   allPeriod.forEach((r) => {
     if (r.client_id) clientCounts[r.client_id] = (clientCounts[r.client_id] ?? 0) + 1;
@@ -302,6 +316,30 @@ export default async function OwnerDashboard({
                 <span className="text-xs" style={{ color: "var(--text-secondary)", fontSize: 10 }}>
                   {String(hour).padStart(2, "0")}
                 </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Peak days */}
+      {allPeriod.length > 0 && (
+        <div className="card mb-3">
+          <p className={sectionTitle} style={{ color: "var(--text-secondary)" }}>
+            Días pico
+          </p>
+          <div className="flex items-end gap-1.5" style={{ height: 80 }}>
+            {peakDays.map(({ label, count }) => (
+              <div key={label} className="flex-1 flex flex-col items-center gap-1">
+                <div
+                  className="w-full rounded-sm"
+                  style={{
+                    height: `${Math.max(4, (count / maxDayCount) * 64)}px`,
+                    background: "var(--accent)",
+                    opacity: count === 0 ? 0.15 : 0.45 + (count / maxDayCount) * 0.55,
+                  }}
+                />
+                <span style={{ color: "var(--text-secondary)", fontSize: 10 }}>{label}</span>
               </div>
             ))}
           </div>

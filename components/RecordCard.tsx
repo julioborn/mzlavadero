@@ -95,6 +95,9 @@ export default function RecordCard({
             <span className={`badge-${record.payment_method}`}>
               {record.payment_method === "efectivo" ? "Efectivo" : "Transferencia"}
             </span>
+            {record.is_membership && (
+              <span className="badge-membership">✨ Membresía</span>
+            )}
           </div>
           <p className="text-lg font-bold mt-1" style={{ color: "var(--warning)" }}>
             ${parseFloat(record.amount).toLocaleString("es-AR")}

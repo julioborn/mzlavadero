@@ -18,6 +18,7 @@ export default function EditWashForm({ record }: { record: any }) {
   const [plate, setPlate] = useState(record.vehicles?.plate ?? "");
   const [detail, setDetail] = useState(record.detail ?? "");
   const [status, setStatus] = useState<"pending" | "completed">(record.status);
+  const [isMembership, setIsMembership] = useState<boolean>(record.is_membership ?? false);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -95,6 +96,7 @@ export default function EditWashForm({ record }: { record: any }) {
         amount: parseInt(amount),
         detail: detail.trim() || null,
         status,
+        is_membership: isMembership,
       })
       .eq("id", record.id);
 
@@ -263,6 +265,30 @@ export default function EditWashForm({ record }: { record: any }) {
               {s.label}
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* Membership */}
+      <div>
+        <label className="label">Membresía</label>
+        <div
+          className="flex items-center gap-3 py-3 px-4 rounded-xl cursor-pointer"
+          style={{
+            background: "var(--bg-card)",
+            border: `1.5px solid ${isMembership ? "rgba(139,92,246,0.4)" : "var(--border-subtle)"}`,
+          }}
+          onClick={() => setIsMembership((v) => !v)}
+        >
+          <input
+            type="checkbox"
+            checked={isMembership}
+            onChange={(e) => setIsMembership(e.target.checked)}
+            className="w-5 h-5 cursor-pointer"
+            style={{ accentColor: "#8b5cf6" }}
+          />
+          <span className="text-sm font-semibold" style={{ color: isMembership ? "#a78bfa" : "var(--text-primary)" }}>
+            Con membresía
+          </span>
         </div>
       </div>
 

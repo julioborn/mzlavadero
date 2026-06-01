@@ -51,3 +51,10 @@ export interface WashRecordWithDetails extends WashRecord {
   vehicles: Vehicle;
   profiles: Profile;
 }
+
+export interface AppSettings {
+  id: number;
+  membership_price_auto: number;
+  membership_price_camioneta: number;
+  updated_at: string;
+}
