@@ -109,11 +109,11 @@ export default function NewExpenseForm() {
         </div>
       </div>
 
-      <div>
+      <div className="min-w-0">
         <label className="label">Fecha</label>
         <input
           type="date"
-          className="input-field"
+          className="input-field w-full min-w-0"
           value={expenseDate}
           onChange={(e) => setExpenseDate(e.target.value)}
           required

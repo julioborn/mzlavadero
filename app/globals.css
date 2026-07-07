@@ -149,6 +149,13 @@ select {
   opacity: 0.6;
 }
 
+/* Evita que los inputs de fecha/hora se desborden del contenedor en mobile */
+input[type="date"],
+input[type="time"] {
+  min-width: 0;
+  max-width: 100%;
+}
+
 /* ── Labels ── */
 .label {
   display: block;
