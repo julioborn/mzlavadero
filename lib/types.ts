@@ -58,3 +58,15 @@ export interface AppSettings {
   membership_price_camioneta: number;
   updated_at: string;
 }
+
+export interface Expense {
+  id: string;
+  employee_id: string | null;
+  product: string;
+  price: number;
+  quantity: number;
+  expense_date: string;
+  created_at: string;
+  // joined
+  employee?: Profile;
+}

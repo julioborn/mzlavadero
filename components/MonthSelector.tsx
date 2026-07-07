@@ -11,14 +11,22 @@ function formatLabel(yearMonth: string): string {
   return `${MONTHS_ES_FULL[parseInt(month) - 1]} ${year}`;
 }
 
-export default function MonthSelector({ selected, months }: { selected: string; months: string[] }) {
+export default function MonthSelector({
+  selected,
+  months,
+  basePath = "/owner",
+}: {
+  selected: string;
+  months: string[];
+  basePath?: string;
+}) {
   const router = useRouter();
 
   return (
     <div className="relative mb-5">
       <select
         value={selected}
-        onChange={(e) => router.push(`/owner?month=${e.target.value}`)}
+        onChange={(e) => router.push(`${basePath}?month=${e.target.value}`)}
         className="w-full appearance-none rounded-xl px-4 py-3 text-sm font-semibold"
         style={{
           background: "var(--bg-card)",

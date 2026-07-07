@@ -3,6 +3,7 @@ import StatsBar from "@/components/StatsBar";
 import MonthSelector from "@/components/MonthSelector";
 import QRModal from "@/components/QRModal";
 import DateRangePicker from "@/components/DateRangePicker";
+import Link from "next/link";
 
 const MONTHS_ES_FULL = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
@@ -110,6 +111,18 @@ export default async function OwnerDashboard({
     week:  { count: weekRecs.length,  revenue: sumAmount(weekRecs) },
     period: { count: allPeriod.length, revenue: sumAmount(allPeriod) },
   };
+
+  const { data: periodExpenses } = await supabase
+    .from("expenses")
+    .select("price, quantity")
+    .gte("expense_date", dataStart)
+    .lte("expense_date", dataEnd);
+
+  const totalExpenses = (periodExpenses ?? []).reduce(
+    (acc, e) => acc + Number(e.price) * Number(e.quantity),
+    0
+  );
+  const netProfit = stats.period.revenue - totalExpenses;
 
   const vehicleBreakdown: Record<string, { count: number; revenue: number }> = {};
   allPeriod.forEach((r) => {
@@ -241,6 +254,38 @@ export default async function OwnerDashboard({
           </p>
         </div>
       )}
+
+      {/* Expenses summary */}
+      <div className="card mb-3">
+        <div className="flex items-center justify-between mb-4">
+          <p className={sectionTitle} style={{ color: "var(--text-secondary)", marginBottom: 0 }}>
+            Resumen del período
+          </p>
+          <Link href="/owner/expenses" className="text-xs font-semibold" style={{ color: "var(--accent)" }}>
+            Ver insumos →
+          </Link>
+        </div>
+        <div className="flex flex-col gap-2.5">
+          <div className="flex justify-between text-sm">
+            <span style={{ color: "var(--text-secondary)" }}>Ingresos</span>
+            <span className="font-semibold" style={{ color: "var(--warning)" }}>
+              ${stats.period.revenue.toLocaleString("es-AR")}
+            </span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span style={{ color: "var(--text-secondary)" }}>Gastos (insumos)</span>
+            <span className="font-semibold" style={{ color: "var(--danger)" }}>
+              ${totalExpenses.toLocaleString("es-AR")}
+            </span>
+          </div>
+          <div className="flex justify-between text-sm pt-2.5" style={{ borderTop: "1px solid var(--border-subtle)" }}>
+            <span className="font-semibold" style={{ color: "var(--text-primary)" }}>Ganancia neta</span>
+            <span className="font-bold" style={{ color: netProfit >= 0 ? "var(--success)" : "var(--danger)" }}>
+              ${netProfit.toLocaleString("es-AR")}
+            </span>
+          </div>
+        </div>
+      </div>
 
       {/* Vehicle breakdown */}
       <div className="card mb-3">
