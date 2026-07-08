@@ -53,6 +53,17 @@ export default function EmployeeNav({ userName }: { userName: string }) {
         <div className="flex items-center gap-2">
           <ThemeToggle />
           <button
+            onClick={() => window.location.reload()}
+            className="w-8 h-8 flex items-center justify-center rounded-lg"
+            style={{ background: "rgba(229,57,53,0.15)", color: "var(--accent)", border: "1px solid rgba(229,57,53,0.3)" }}
+            title="Recargar página"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 12a9 9 0 11-2.64-6.36" />
+              <polyline points="21 3 21 9 15 9" />
+            </svg>
+          </button>
+          <button
             onClick={logout}
             className="text-xs px-3 py-1.5 rounded-lg font-semibold"
             style={{ background: "rgba(248,113,113,0.1)", color: "var(--danger)", border: "1px solid rgba(248,113,113,0.2)" }}
