@@ -29,7 +29,7 @@ export default async function EmployeeLayout({
       style={{ background: "var(--bg-primary)" }}
     >
       <EmployeeNav userName={profile.name} />
-      <main className="flex-1 overflow-y-auto pb-6">{children}</main>
+      <main className="flex-1 overflow-y-auto pb-10">{children}</main>
     </div>
   );
 }
