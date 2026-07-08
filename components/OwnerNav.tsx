@@ -28,6 +28,22 @@ const IconClients = () => (
   </svg>
 );
 
+const IconMembership = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="5" width="20" height="14" rx="2" />
+    <path d="M2 10h20" />
+    <path d="M6 15h4" />
+  </svg>
+);
+
+const IconExpenses = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M6 2 3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4Z" />
+    <path d="M3 6h18" />
+    <path d="M16 10a4 4 0 01-8 0" />
+  </svg>
+);
+
 export default function OwnerNav({ userName }: { userName: string }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -39,9 +55,27 @@ export default function OwnerNav({ userName }: { userName: string }) {
   }
 
   const tabs = [
-    { href: "/owner",         label: "Estadísticas", Icon: IconStats,   match: (p: string) => p === "/owner" },
-    { href: "/owner/records", label: "Registros", Icon: IconRecords, match: (p: string) => p.startsWith("/owner/records") || p.startsWith("/owner/clients") },
+    { href: "/owner/settings", label: "Membresía",   Icon: IconMembership, match: (p: string) => p.startsWith("/owner/settings") },
+    { href: "/owner",          label: "Estadísticas", Icon: IconStats,      match: (p: string) => p === "/owner" },
+    { href: "/owner/records",  label: "Registros",    Icon: IconRecords,    match: (p: string) => p.startsWith("/owner/records") || p.startsWith("/owner/clients") },
+    { href: "/owner/expenses", label: "Insumos",      Icon: IconExpenses,   match: (p: string) => p.startsWith("/owner/expenses") },
   ];
+
+  function renderTab({ href, label, Icon, match }: (typeof tabs)[number]) {
+    const active = match(pathname);
+    return (
+      <Link key={href} href={href}
+        className="flex-1 flex flex-col items-center justify-end py-3 gap-1 text-xs font-medium relative"
+        style={{ color: active ? "var(--accent)" : "var(--text-secondary)" }}>
+        {active && (
+          <span className="absolute top-0 left-1/2 -translate-x-1/2 rounded-full"
+            style={{ width: 24, height: 2, background: "var(--accent)" }} />
+        )}
+        <Icon />
+        {label}
+      </Link>
+    );
+  }
 
   return (
     <>
@@ -60,37 +94,6 @@ export default function OwnerNav({ userName }: { userName: string }) {
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle />
-          <Link
-            href="/owner/expenses"
-            className="w-8 h-8 flex items-center justify-center rounded-lg"
-            style={{
-              background: pathname.startsWith("/owner/expenses") ? "rgba(139,92,246,0.15)" : "var(--bg-card)",
-              color: pathname.startsWith("/owner/expenses") ? "#a78bfa" : "var(--text-secondary)",
-              border: "1px solid var(--border-subtle)",
-            }}
-            title="Insumos"
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M6 2 3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4Z" />
-              <path d="M3 6h18" />
-              <path d="M16 10a4 4 0 01-8 0" />
-            </svg>
-          </Link>
-          <Link
-            href="/owner/settings"
-            className="w-8 h-8 flex items-center justify-center rounded-lg"
-            style={{
-              background: pathname === "/owner/settings" ? "rgba(139,92,246,0.15)" : "var(--bg-card)",
-              color: pathname === "/owner/settings" ? "#a78bfa" : "var(--text-secondary)",
-              border: "1px solid var(--border-subtle)",
-            }}
-            title="Configuración"
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
-            </svg>
-          </Link>
           <button
             onClick={logout}
             className="text-xs px-3 py-1.5 rounded-lg font-semibold"
@@ -105,23 +108,11 @@ export default function OwnerNav({ userName }: { userName: string }) {
         className="fixed bottom-0 left-0 right-0 z-10 flex items-stretch overflow-visible"
         style={{ background: "var(--bg-surface)", borderTop: "1px solid var(--border-nav)" }}
       >
-        {/* Stats */}
-        {(() => {
-          const { href, label, Icon, match } = tabs[0];
-          const active = match(pathname);
-          return (
-            <Link key={href} href={href}
-              className="flex-1 flex flex-col items-center justify-end py-3 gap-1 text-xs font-medium relative"
-              style={{ color: active ? "var(--accent)" : "var(--text-secondary)" }}>
-              {active && (
-                <span className="absolute top-0 left-1/2 -translate-x-1/2 rounded-full"
-                  style={{ width: 24, height: 2, background: "var(--accent)" }} />
-              )}
-              <Icon />
-              {label}
-            </Link>
-          );
-        })()}
+        {/* Membresía */}
+        {renderTab(tabs[0])}
+
+        {/* Estadísticas */}
+        {renderTab(tabs[1])}
 
         {/* Nuevo — FAB central */}
         <Link href="/owner/new" className="flex-1 flex flex-col items-center justify-end pb-2.5 gap-1">
@@ -143,22 +134,10 @@ export default function OwnerNav({ userName }: { userName: string }) {
         </Link>
 
         {/* Registros */}
-        {(() => {
-          const { href, label, Icon, match } = tabs[1];
-          const active = match(pathname);
-          return (
-            <Link key={href} href={href}
-              className="flex-1 flex flex-col items-center justify-end py-3 gap-1 text-xs font-medium relative"
-              style={{ color: active ? "var(--accent)" : "var(--text-secondary)" }}>
-              {active && (
-                <span className="absolute top-0 left-1/2 -translate-x-1/2 rounded-full"
-                  style={{ width: 24, height: 2, background: "var(--accent)" }} />
-              )}
-              <Icon />
-              {label}
-            </Link>
-          );
-        })()}
+        {renderTab(tabs[2])}
+
+        {/* Insumos */}
+        {renderTab(tabs[3])}
       </nav>
 
     </>
