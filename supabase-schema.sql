@@ -197,10 +197,11 @@ create table if not exists membership_payments (
 
 alter table membership_payments enable row level security;
 
+-- Select abierto a todos los autenticados: el formulario de nuevo lavado
+-- (usado también por empleados) necesita leer esto para calcular el monto
+-- automáticamente. Insert/update/delete siguen siendo solo del dueño.
 create policy "membership_payments_select" on membership_payments for select
-  to authenticated using (
-    exists (select 1 from profiles where id = auth.uid() and role = 'owner')
-  );
+  to authenticated using (true);
 
 create policy "membership_payments_insert" on membership_payments for insert
   to authenticated with check (

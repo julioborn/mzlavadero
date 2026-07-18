@@ -106,10 +106,27 @@ export default async function OwnerDashboard({
     return arr.reduce((acc, r) => acc + Number(r.amount), 0);
   }
 
+  // Pagos de membresía cobrados en el período (impactan el día que se registran, no el día del lavado)
+  const { data: periodMembershipPayments } = await supabase
+    .from("membership_payments")
+    .select("amount, paid_date")
+    .gte("paid_date", dataStart)
+    .lte("paid_date", dataEnd);
+
+  const allMembershipPayments = periodMembershipPayments ?? [];
+  const todayPayments = isCurrentMonth ? allMembershipPayments.filter((p) => p.paid_date === today) : [];
+  const weekPayments  = isCurrentMonth ? allMembershipPayments.filter((p) => p.paid_date >= weekStart) : [];
+
+  function sumPayments(arr: typeof allMembershipPayments) {
+    return arr.reduce((acc, p) => acc + Number(p.amount), 0);
+  }
+
+  const membershipRevenue = sumPayments(allMembershipPayments);
+
   const stats = {
-    today: { count: todayRecs.length, revenue: sumAmount(todayRecs) },
-    week:  { count: weekRecs.length,  revenue: sumAmount(weekRecs) },
-    period: { count: allPeriod.length, revenue: sumAmount(allPeriod) },
+    today: { count: todayRecs.length, revenue: sumAmount(todayRecs) + sumPayments(todayPayments) },
+    week:  { count: weekRecs.length,  revenue: sumAmount(weekRecs) + sumPayments(weekPayments) },
+    period: { count: allPeriod.length, revenue: sumAmount(allPeriod) + membershipRevenue },
   };
 
   const { data: periodExpenses } = await supabase
@@ -272,6 +289,14 @@ export default async function OwnerDashboard({
               ${stats.period.revenue.toLocaleString("es-AR")}
             </span>
           </div>
+          {membershipRevenue > 0 && (
+            <div className="flex justify-between text-xs -mt-1.5 pl-2">
+              <span style={{ color: "var(--text-secondary)" }}>· de las cuales, membresías pagadas</span>
+              <span style={{ color: "var(--text-secondary)" }}>
+                ${membershipRevenue.toLocaleString("es-AR")}
+              </span>
+            </div>
+          )}
           <div className="flex justify-between text-sm">
             <span style={{ color: "var(--text-secondary)" }}>Gastos (insumos)</span>
             <span className="font-semibold" style={{ color: "var(--danger)" }}>

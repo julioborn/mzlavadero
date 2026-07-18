@@ -61,9 +61,21 @@ export default async function OwnerMembershipsPage({
   (membershipWashes ?? []).forEach((r) => {
     countByVehicle.set(r.vehicle_id, (countByVehicle.get(r.vehicle_id) ?? 0) + 1);
   });
-  const vehicleIds = [...countByVehicle.keys()];
 
-  // 2. Precios de membresía (para sugerir el monto de la mensualidad)
+  // 2. Pagos de membresía del mes (puede haber pagos registrados de vehículos
+  // que todavía no lavaron este mes, así que se incluyen aunque count sea 0)
+  const { data: paymentRowsAll } = await supabase
+    .from("membership_payments")
+    .select("vehicle_id, amount, payment_method, paid_date")
+    .eq("month", selectedMonth);
+
+  const paymentByVehicle = new Map(
+    (paymentRowsAll ?? []).map((p) => [p.vehicle_id, { amount: Number(p.amount), payment_method: p.payment_method, paid_date: p.paid_date }])
+  );
+
+  const vehicleIds = [...new Set([...countByVehicle.keys(), ...paymentByVehicle.keys()])];
+
+  // 3. Precios de membresía (para sugerir el monto de la mensualidad)
   const { data: settings } = await supabase
     .from("app_settings")
     .select("membership_price_auto, membership_price_camioneta")
@@ -94,15 +106,6 @@ export default async function OwnerMembershipsPage({
         ownerByVehicle.set(row.vehicle_id, { name: row.clients.name, phone: row.clients.phone });
       }
     });
-
-    const { data: paymentRows } = await supabase
-      .from("membership_payments")
-      .select("vehicle_id, amount, payment_method, paid_date")
-      .eq("month", selectedMonth)
-      .in("vehicle_id", vehicleIds);
-    const paymentByVehicle = new Map(
-      (paymentRows ?? []).map((p) => [p.vehicle_id, { amount: Number(p.amount), payment_method: p.payment_method, paid_date: p.paid_date }])
-    );
 
     vehicles = (vRows ?? []).map((v) => {
       const owner = ownerByVehicle.get(v.id);
@@ -174,7 +177,7 @@ export default async function OwnerMembershipsPage({
 
       {vehicles.length === 0 ? (
         <div className="card text-center py-14" style={{ color: "var(--text-secondary)" }}>
-          <p className="font-medium text-sm">Ningún vehículo tiene membresía activa este mes.</p>
+          <p className="font-medium text-sm">Ningún vehículo tiene lavados o pago de membresía registrados este mes.</p>
         </div>
       ) : (
         <div className="flex flex-col gap-3">

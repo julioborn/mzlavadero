@@ -279,7 +279,7 @@ export default async function OwnerClients({
                             </span>
                           )}
                         </div>
-                        {membershipCount > 0 && (
+                        {(membershipCount > 0 || payment) && (
                           <MembershipPaymentStatus vehicleId={v.id} month={ym} payment={payment} defaultAmount={defaultAmount} />
                         )}
                       </div>
