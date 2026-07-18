@@ -21,7 +21,7 @@ export default async function OwnerSettingsPage() {
   return (
     <div className="px-4 py-6 max-w-xl mx-auto mb-6">
       <div className="flex items-center gap-3 mb-6">
-        <Link href="/owner" className="text-2xl leading-none" style={{ color: "var(--text-secondary)" }}>
+        <Link href="/owner/memberships" className="text-2xl leading-none" style={{ color: "var(--text-secondary)" }}>
           ←
         </Link>
         <h1 className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>

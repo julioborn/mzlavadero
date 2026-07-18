@@ -55,7 +55,7 @@ export default function OwnerNav({ userName }: { userName: string }) {
   }
 
   const tabs = [
-    { href: "/owner/settings", label: "Membresía",   Icon: IconMembership, match: (p: string) => p.startsWith("/owner/settings") },
+    { href: "/owner/memberships", label: "Membresía", Icon: IconMembership, match: (p: string) => p.startsWith("/owner/memberships") || p.startsWith("/owner/settings") },
     { href: "/owner",          label: "Estadísticas", Icon: IconStats,      match: (p: string) => p === "/owner" },
     { href: "/owner/records",  label: "Registros",    Icon: IconRecords,    match: (p: string) => p.startsWith("/owner/records") || p.startsWith("/owner/clients") },
     { href: "/owner/expenses", label: "Insumos",      Icon: IconExpenses,   match: (p: string) => p.startsWith("/owner/expenses") },

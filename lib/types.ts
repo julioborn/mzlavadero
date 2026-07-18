@@ -74,3 +74,14 @@ export interface Expense {
   // joined
   employee?: Profile;
 }
+
+export interface MembershipPayment {
+  id: string;
+  vehicle_id: string;
+  month: string;
+  amount: number;
+  payment_method: PaymentMethod;
+  paid_date: string;
+  registered_by: string | null;
+  created_at: string;
+}
