@@ -13,6 +13,13 @@ interface LinkedVehicle {
   type: VehicleType;
 }
 
+interface SearchResult {
+  id: string;
+  name: string | null;
+  phone: string;
+  vehicles: LinkedVehicle[];
+}
+
 const VEHICLE_LABELS: Record<VehicleType, string> = {
   auto: "🚗 Auto",
   camioneta: "🚙 Camioneta",
@@ -48,12 +55,17 @@ export default function NewWashForm({
   const supabase = createClient();
   const { theme } = useTheme();
 
-  // Phone autocomplete
+  // Unified search (nombre, teléfono o patente)
+  const [search, setSearch] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [showSearchDrop, setShowSearchDrop] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  // Client
   const [phone, setPhone] = useState("");
-  const [phoneSuggestions, setPhoneSuggestions] = useState<string[]>([]);
-  const [showPhoneDrop, setShowPhoneDrop] = useState(false);
+  const [clientName, setClientName] = useState("");
+  const [clientId, setClientId] = useState<string | null>(null);
   const [linkedVehicles, setLinkedVehicles] = useState<LinkedVehicle[]>([]);
-  const phoneRef = useRef<HTMLDivElement>(null);
 
   // Form fields
   const [washTime, setWashTime] = useState(getNow());
@@ -61,27 +73,28 @@ export default function NewWashForm({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("efectivo");
   const [amount, setAmount] = useState("");
   const [vehicleType, setVehicleType] = useState<VehicleType | "">("");
+  const [vehicleId, setVehicleId] = useState<string | null>(null);
   const [plate, setPlate] = useState("");
   const [plateSuggestions, setPlateSuggestions] = useState<LinkedVehicle[]>([]);
   const [showPlateDrop, setShowPlateDrop] = useState(false);
   const [detail, setDetail] = useState("");
 
-  // Membership
+  // Membership (por vehículo) + precios por defecto
   const [isMembership, setIsMembership] = useState(false);
   const [membershipPrices, setMembershipPrices] = useState({ auto: 0, camioneta: 0 });
+  const [defaultPrices, setDefaultPrices] = useState({ auto: 0, camioneta: 0, moto: 0 });
   const [membershipCount, setMembershipCount] = useState<number | null>(null);
-  const [membershipClientId, setMembershipClientId] = useState<string | null>(null);
 
   // State
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
-  // Load membership prices on mount
+  // Load prices on mount
   useEffect(() => {
     supabase
       .from("app_settings")
-      .select("membership_price_auto, membership_price_camioneta")
+      .select("membership_price_auto, membership_price_camioneta, price_auto, price_camioneta, price_moto")
       .eq("id", 1)
       .single()
       .then(({ data }) => {
@@ -90,94 +103,157 @@ export default function NewWashForm({
             auto: data.membership_price_auto,
             camioneta: data.membership_price_camioneta,
           });
+          setDefaultPrices({
+            auto: data.price_auto,
+            camioneta: data.price_camioneta,
+            moto: data.price_moto,
+          });
         }
       });
   }, []);
 
-  // Phone search
+  // Unified search: nombre, teléfono o patente
   useEffect(() => {
-    if (phone.length < 3) {
-      setPhoneSuggestions([]);
-      setShowPhoneDrop(false);
+    if (search.trim().length < 2) {
+      setSearchResults([]);
+      setShowSearchDrop(false);
       return;
     }
     const timer = setTimeout(async () => {
-      const { data } = await supabase
+      const term = search.trim().replace(/[,%]/g, "");
+      if (!term) {
+        setSearchResults([]);
+        setShowSearchDrop(false);
+        return;
+      }
+
+      const { data: clientRows } = await supabase
         .from("clients")
-        .select("phone")
-        .ilike("phone", `%${phone}%`)
-        .limit(6);
-      const phones = (data ?? []).map((c) => c.phone);
-      setPhoneSuggestions(phones);
-      setShowPhoneDrop(phones.length > 0);
+        .select("id, name, phone")
+        .or(`name.ilike.%${term}%,phone.ilike.%${term}%`)
+        .limit(8);
+
+      const { data: vehicleRows } = await supabase
+        .from("vehicles")
+        .select("id, plate, type, client_vehicles(clients(id, name, phone))")
+        .ilike("plate", `%${term}%`)
+        .limit(8);
+
+      const merged = new Map<string, SearchResult>();
+
+      (clientRows ?? []).forEach((c: any) => {
+        merged.set(c.id, { id: c.id, name: c.name, phone: c.phone, vehicles: [] });
+      });
+
+      (vehicleRows ?? []).forEach((v: any) => {
+        (v.client_vehicles ?? []).forEach((cv: any) => {
+          const c = cv.clients;
+          if (!c) return;
+          if (!merged.has(c.id)) merged.set(c.id, { id: c.id, name: c.name, phone: c.phone, vehicles: [] });
+          const entry = merged.get(c.id)!;
+          if (!entry.vehicles.some((mv) => mv.id === v.id)) {
+            entry.vehicles.push({ id: v.id, plate: v.plate, type: v.type });
+          }
+        });
+      });
+
+      const idsNeedingVehicles = [...merged.values()].filter((m) => m.vehicles.length === 0).map((m) => m.id);
+      if (idsNeedingVehicles.length) {
+        const { data: cv } = await supabase
+          .from("client_vehicles")
+          .select("client_id, vehicles(id, plate, type)")
+          .in("client_id", idsNeedingVehicles);
+        (cv ?? []).forEach((row: any) => {
+          if (row.vehicles && merged.has(row.client_id)) {
+            merged.get(row.client_id)!.vehicles.push(row.vehicles);
+          }
+        });
+      }
+
+      const list = [...merged.values()];
+      setSearchResults(list);
+      setShowSearchDrop(list.length > 0);
     }, 300);
     return () => clearTimeout(timer);
-  }, [phone]);
+  }, [search]);
 
-  // Close phone dropdown on outside click
+  // Close search dropdown on outside click
   useEffect(() => {
     function handler(e: MouseEvent) {
-      if (phoneRef.current && !phoneRef.current.contains(e.target as Node)) {
-        setShowPhoneDrop(false);
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowSearchDrop(false);
       }
     }
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  async function checkClientMembership(clientId: string, date: string) {
+  function getDefaultPriceFill(t: VehicleType): string {
+    const price = defaultPrices[t];
+    return price > 0 ? String(price) : "";
+  }
+
+  async function checkVehicleMembership(vehId: string, date: string) {
     const { start, end } = getMonthBounds(date);
     const { data } = await supabase
       .from("wash_records")
       .select("id")
-      .eq("client_id", clientId)
+      .eq("vehicle_id", vehId)
       .eq("is_membership", true)
       .gte("wash_date", start)
       .lte("wash_date", end);
 
     const count = (data ?? []).length;
     setMembershipCount(count);
+
     if (count > 0 && count < 4) {
+      // Lavado 2°, 3° o 4° del mes para este vehículo → incluido, $0
       setIsMembership(true);
-      // Ya pagó la mensualidad este mes → lavados restantes son $0
       setAmount("0");
+    } else if (count >= 4) {
+      // Ya usó los 4 lavados de membresía del mes → se cobra como lavado normal
+      setIsMembership(false);
+      if (vehicleType) {
+        const fill = getDefaultPriceFill(vehicleType as VehicleType);
+        setAmount(fill);
+      } else if (amount === "0") {
+        setAmount("");
+      }
     }
   }
 
-  async function selectPhone(p: string) {
-    setPhone(p);
-    setShowPhoneDrop(false);
-
-    const { data: clientData } = await supabase
-      .from("clients")
-      .select("id")
-      .eq("phone", p)
-      .single();
-
-    if (!clientData) {
-      setMembershipClientId(null);
-      setMembershipCount(null);
-      return;
-    }
-
-    setMembershipClientId(clientData.id);
-    await checkClientMembership(clientData.id, washDate);
-
-    const { data: cvData } = await supabase
-      .from("client_vehicles")
-      .select("vehicles(id, plate, type)")
-      .eq("client_id", clientData.id);
-    const vehicles: LinkedVehicle[] = (cvData ?? [])
-      .map((row: any) => row.vehicles)
-      .filter(Boolean);
-    setLinkedVehicles(vehicles);
-    setPlateSuggestions(vehicles);
-  }
-
-  function selectVehicle(v: LinkedVehicle) {
+  async function selectVehicle(v: LinkedVehicle) {
     setPlate(v.plate.toUpperCase());
-    handleVehicleTypeSelect(v.type);
+    setVehicleType(v.type);
+    setVehicleId(v.id);
     setShowPlateDrop(false);
+    await checkVehicleMembership(v.id, washDate);
+  }
+
+  function selectClient(result: SearchResult) {
+    setPhone(result.phone);
+    setClientName(result.name ?? "");
+    setClientId(result.id);
+    setLinkedVehicles(result.vehicles);
+    setPlateSuggestions(result.vehicles);
+    setPlate("");
+    setVehicleType("");
+    setVehicleId(null);
+    setMembershipCount(null);
+    setIsMembership(false);
+    setShowSearchDrop(false);
+    setSearch("");
+  }
+
+  async function selectClientVehicle(result: SearchResult, v: LinkedVehicle) {
+    setPhone(result.phone);
+    setClientName(result.name ?? "");
+    setClientId(result.id);
+    setLinkedVehicles(result.vehicles);
+    setPlateSuggestions(result.vehicles);
+    setShowSearchDrop(false);
+    setSearch("");
+    await selectVehicle(v);
   }
 
   function getMembershipAutoFill(t: VehicleType): string {
@@ -190,21 +266,19 @@ export default function NewWashForm({
 
   function handleVehicleTypeSelect(t: VehicleType) {
     setVehicleType(t);
-    if (isMembership) {
-      const fill = getMembershipAutoFill(t);
-      if (fill !== "") setAmount(fill);
-    }
+    const fill = isMembership ? getMembershipAutoFill(t) : getDefaultPriceFill(t);
+    if (fill !== "") setAmount(fill);
   }
 
   function handleMembershipChange(checked: boolean) {
     setIsMembership(checked);
-    if (checked && vehicleType) {
-      const fill = getMembershipAutoFill(vehicleType as VehicleType);
+    if (vehicleType) {
+      const fill = checked ? getMembershipAutoFill(vehicleType as VehicleType) : getDefaultPriceFill(vehicleType as VehicleType);
       if (fill !== "") setAmount(fill);
     }
   }
 
-  // Plate input: filter linked vehicles
+  // Plate input: filtra vehículos vinculados al cliente seleccionado (sugerencias locales)
   useEffect(() => {
     if (plate.length > 0 && linkedVehicles.length > 0) {
       const filtered = linkedVehicles.filter((v) =>
@@ -217,10 +291,56 @@ export default function NewWashForm({
     }
   }, [plate, linkedVehicles]);
 
+  // Plate lookup: resuelve el vehículo exacto (exista o no un cliente ya elegido)
+  useEffect(() => {
+    const plateUpper = plate.trim().toUpperCase();
+    if (!plateUpper) {
+      setVehicleId(null);
+      setMembershipCount(null);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      const { data: v } = await supabase
+        .from("vehicles")
+        .select("id, type")
+        .eq("plate", plateUpper)
+        .single();
+
+      if (v) {
+        setVehicleId(v.id);
+        setVehicleType(v.type);
+        await checkVehicleMembership(v.id, washDate);
+
+        if (!phone.trim()) {
+          const { data: cv } = await supabase
+            .from("client_vehicles")
+            .select("clients(id, name, phone)")
+            .eq("vehicle_id", v.id)
+            .limit(1)
+            .maybeSingle();
+          const c: any = cv?.clients;
+          if (c) {
+            setPhone(c.phone);
+            setClientName(c.name ?? "");
+            setClientId(c.id);
+          }
+        }
+      } else {
+        setVehicleId(null);
+        setMembershipCount(null);
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [plate]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
 
+    if (!phone.trim()) {
+      setError("Ingresá el teléfono del cliente.");
+      return;
+    }
     if (!vehicleType) {
       setError("Seleccioná el tipo de vehículo.");
       return;
@@ -233,57 +353,34 @@ export default function NewWashForm({
       setError("Ingresá un monto válido.");
       return;
     }
-    if (isMembership && !phone.trim()) {
-      setError("La membresía requiere el teléfono del cliente.");
-      return;
-    }
 
     setLoading(true);
 
-    // 1. Upsert client
-    let clientId: string | null = null;
-    if (phone.trim()) {
-      let { data: client } = await supabase
+    // 1. Upsert client (teléfono + nombre opcional)
+    let { data: client } = await supabase
+      .from("clients")
+      .select("id, name")
+      .eq("phone", phone.trim())
+      .single();
+
+    if (!client) {
+      const { data: newClient, error: clientErr } = await supabase
         .from("clients")
-        .select("id")
-        .eq("phone", phone.trim())
+        .insert({ phone: phone.trim(), name: clientName.trim() || null })
+        .select("id, name")
         .single();
-
-      if (!client) {
-        const { data: newClient, error: clientErr } = await supabase
-          .from("clients")
-          .insert({ phone: phone.trim() })
-          .select("id")
-          .single();
-        if (clientErr || !newClient) {
-          setError("Error al guardar el cliente.");
-          setLoading(false);
-          return;
-        }
-        client = newClient;
-      }
-      clientId = client.id;
-    }
-
-    // 2. Membership validation
-    if (isMembership && clientId) {
-      const { start, end } = getMonthBounds(washDate);
-      const { data: membershipWashes } = await supabase
-        .from("wash_records")
-        .select("id")
-        .eq("client_id", clientId)
-        .eq("is_membership", true)
-        .gte("wash_date", start)
-        .lte("wash_date", end);
-
-      if ((membershipWashes ?? []).length >= 4) {
-        setError("Este cliente ya alcanzó el límite de 4 lavados con membresía este mes.");
+      if (clientErr || !newClient) {
+        setError("Error al guardar el cliente.");
         setLoading(false);
         return;
       }
+      client = newClient;
+    } else if (clientName.trim() && clientName.trim() !== client.name) {
+      await supabase.from("clients").update({ name: clientName.trim() }).eq("id", client.id);
     }
+    const finalClientId: string = client.id;
 
-    // 3. Upsert vehicle
+    // 2. Upsert vehicle
     const plateUpper = plate.trim().toUpperCase();
     let { data: vehicle } = await supabase
       .from("vehicles")
@@ -305,17 +402,37 @@ export default function NewWashForm({
       vehicle = newVehicle;
     }
 
-    // 4. Upsert client_vehicles link
-    if (clientId) {
-      await supabase
-        .from("client_vehicles")
-        .upsert({ client_id: clientId, vehicle_id: vehicle!.id });
-    }
+    // 3. Upsert client_vehicles link
+    await supabase
+      .from("client_vehicles")
+      .upsert({ client_id: finalClientId, vehicle_id: vehicle!.id });
 
-    // 5. Get current user
+    // 4. Get current user
     const {
       data: { user },
     } = await supabase.auth.getUser();
+
+    // 5. Membership: re-chequeo por vehículo (evita condiciones de carrera)
+    let finalIsMembership = isMembership;
+    if (isMembership) {
+      const { start, end } = getMonthBounds(washDate);
+      const { data: membershipWashes } = await supabase
+        .from("wash_records")
+        .select("id")
+        .eq("vehicle_id", vehicle!.id)
+        .eq("is_membership", true)
+        .gte("wash_date", start)
+        .lte("wash_date", end);
+
+      if ((membershipWashes ?? []).length >= 4) {
+        finalIsMembership = false;
+        if (!amount || parseInt(amount) <= 0) {
+          setError("Este vehículo ya alcanzó el límite de 4 lavados con membresía este mes. Ingresá el monto del lavado normal.");
+          setLoading(false);
+          return;
+        }
+      }
+    }
 
     // 6. Determinar estado
     const washDateTime = new Date(`${washDate}T${washTime}:00`);
@@ -324,7 +441,7 @@ export default function NewWashForm({
     // 7. Insert wash record
     const { error: recErr } = await supabase.from("wash_records").insert({
       employee_id: user!.id,
-      client_id: clientId,
+      client_id: finalClientId,
       vehicle_id: vehicle!.id,
       wash_date: washDate,
       wash_time: washTime,
@@ -332,7 +449,7 @@ export default function NewWashForm({
       amount: parseInt(amount),
       detail: detail.trim() || null,
       status,
-      is_membership: isMembership,
+      is_membership: finalIsMembership,
     });
 
     if (recErr) {
@@ -361,18 +478,22 @@ export default function NewWashForm({
               className="btn-primary"
               onClick={() => {
                 setSuccess(false);
+                setSearch("");
+                setSearchResults([]);
                 setPhone("");
+                setClientName("");
+                setClientId(null);
                 setLinkedVehicles([]);
                 setWashTime(getNow());
                 setWashDate(getToday());
                 setPaymentMethod("efectivo");
                 setAmount("");
                 setVehicleType("");
+                setVehicleId(null);
                 setPlate("");
                 setDetail("");
                 setIsMembership(false);
                 setMembershipCount(null);
-                setMembershipClientId(null);
               }}
             >
               Registrar otro lavado
@@ -410,83 +531,113 @@ export default function NewWashForm({
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-        {/* Phone */}
-        <div ref={phoneRef} className="relative">
-          <label className="label">Teléfono del cliente <span style={{ color: "var(--text-secondary)", fontWeight: 400 }}>(opcional)</span></label>
+        {/* Búsqueda unificada */}
+        <div ref={searchRef} className="relative">
+          <label className="label">Buscar cliente (nombre, teléfono o patente)</label>
           <input
-            type="tel"
-            inputMode="numeric"
+            type="text"
             className="input-field"
-            placeholder="Ej: 1154321234"
-            value={phone}
-            onChange={(e) => {
-              const val = e.target.value;
-              setPhone(val);
-              if (!val.trim()) {
-                setIsMembership(false);
-                setMembershipCount(null);
-                setMembershipClientId(null);
-                setLinkedVehicles([]);
-              }
-            }}
+            placeholder="Ej: Juan, 1154321234 o ABC123"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
             autoComplete="off"
           />
-          {showPhoneDrop && (
+          {showSearchDrop && (
             <div
               className="absolute left-0 right-0 top-full mt-1 rounded-xl overflow-hidden z-20 shadow-xl"
               style={{ background: "var(--bg-card)", border: "1px solid rgba(255,255,255,0.1)" }}
             >
-              {phoneSuggestions.map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  className="w-full text-left px-4 py-3 text-sm"
-                  style={{ color: "var(--text-primary)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}
-                  onMouseDown={() => selectPhone(p)}
-                >
-                  📱 {p}
-                </button>
+              {searchResults.map((r) => (
+                <div key={r.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                  <button
+                    type="button"
+                    className="w-full text-left px-4 py-2.5 text-sm"
+                    style={{ color: "var(--text-primary)" }}
+                    onMouseDown={() => selectClient(r)}
+                  >
+                    <span className="font-semibold">{r.name?.trim() || "Sin nombre"}</span>
+                    <span style={{ color: "var(--text-secondary)" }}> · 📱 {r.phone}</span>
+                  </button>
+                  {r.vehicles.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 px-4 pb-2.5">
+                      {r.vehicles.map((v) => (
+                        <button
+                          key={v.id}
+                          type="button"
+                          className="px-2.5 py-1 rounded-lg text-xs font-semibold"
+                          style={{ background: "var(--bg-elevated)", color: "var(--text-primary)", border: "1px solid rgba(255,255,255,0.1)" }}
+                          onMouseDown={() => selectClientVehicle(r, v)}
+                        >
+                          {VEHICLE_LABELS[v.type]} · {v.plate.toUpperCase()}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               ))}
-            </div>
-          )}
-          {linkedVehicles.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-2">
-              {linkedVehicles.map((v) => (
-                <button
-                  key={v.id}
-                  type="button"
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold"
-                  style={{
-                    background: plate.toUpperCase() === v.plate.toUpperCase() ? "var(--accent)" : "var(--bg-card)",
-                    color: "var(--text-primary)",
-                    border: "1px solid rgba(255,255,255,0.15)",
-                  }}
-                  onClick={() => selectVehicle(v)}
-                >
-                  {VEHICLE_LABELS[v.type]} · {v.plate.toUpperCase()}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Membership status info — solo si tiene lavados con membresía este mes */}
-          {membershipCount !== null && membershipCount > 0 && (
-            <div
-              className="mt-2 flex items-center gap-2 text-xs px-3 py-2 rounded-lg"
-              style={{
-                background: membershipCount >= 4 ? "rgba(239,68,68,0.08)" : "rgba(139,92,246,0.08)",
-                color: membershipCount >= 4 ? "var(--danger)" : "#a78bfa",
-                border: `1px solid ${membershipCount >= 4 ? "rgba(239,68,68,0.2)" : "rgba(139,92,246,0.2)"}`,
-              }}
-            >
-              <span>{membershipCount >= 4 ? "❌" : "✨"}</span>
-              <span>
-                Membresía activa · {membershipCount}/4 lavados este mes
-                {membershipCount >= 4 && " · Límite alcanzado"}
-              </span>
             </div>
           )}
         </div>
+
+        {/* Teléfono + Nombre */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="label">Teléfono</label>
+            <input
+              type="tel"
+              inputMode="numeric"
+              className="input-field"
+              placeholder="Ej: 1154321234"
+              value={phone}
+              onChange={(e) => {
+                setPhone(e.target.value);
+                setClientId(null);
+                setLinkedVehicles([]);
+              }}
+              autoComplete="off"
+              required
+            />
+          </div>
+          <div>
+            <label className="label">
+              Nombre <span style={{ color: "var(--text-secondary)", fontWeight: 400 }}>(opcional)</span>
+            </label>
+            <input
+              type="text"
+              className="input-field"
+              placeholder="Ej: Juan Pérez"
+              value={clientName}
+              onChange={(e) => setClientName(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
+        </div>
+
+        {clientId && (
+          <p className="text-xs -mt-2" style={{ color: "var(--text-secondary)" }}>
+            ✓ Cliente existente
+          </p>
+        )}
+
+        {linkedVehicles.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {linkedVehicles.map((v) => (
+              <button
+                key={v.id}
+                type="button"
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                style={{
+                  background: plate.toUpperCase() === v.plate.toUpperCase() ? "var(--accent)" : "var(--bg-card)",
+                  color: "var(--text-primary)",
+                  border: "1px solid rgba(255,255,255,0.15)",
+                }}
+                onClick={() => selectVehicle(v)}
+              >
+                {VEHICLE_LABELS[v.type]} · {v.plate.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Membership */}
         <div>
@@ -519,6 +670,24 @@ export default function NewWashForm({
               )}
             </label>
           </div>
+
+          {/* Membership status info — por vehículo */}
+          {membershipCount !== null && membershipCount > 0 && (
+            <div
+              className="mt-2 flex items-center gap-2 text-xs px-3 py-2 rounded-lg"
+              style={{
+                background: membershipCount >= 4 ? "rgba(239,68,68,0.08)" : "rgba(139,92,246,0.08)",
+                color: membershipCount >= 4 ? "var(--danger)" : "#a78bfa",
+                border: `1px solid ${membershipCount >= 4 ? "rgba(239,68,68,0.2)" : "rgba(139,92,246,0.2)"}`,
+              }}
+            >
+              <span>{membershipCount >= 4 ? "❌" : "✨"}</span>
+              <span>
+                Membresía activa (este vehículo) · {membershipCount}/4 lavados este mes
+                {membershipCount >= 4 && " · Límite alcanzado, se cobra como lavado normal"}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Date & Time */}

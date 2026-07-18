@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import ClientNameEditor from "@/components/ClientNameEditor";
 import Link from "next/link";
 
 const PAGE_SIZE = 15;
@@ -8,6 +9,13 @@ function waHref(phone: string): string {
   if (d.startsWith("54") && d.length >= 11) return `https://wa.me/${d}`;
   const local = d.startsWith("0") ? d.slice(1) : d;
   return `https://wa.me/54${local}`;
+}
+
+function currentMonthBounds(): { start: string; end: string } {
+  const today = new Date().toLocaleDateString("sv", { timeZone: "America/Argentina/Buenos_Aires" });
+  const [y, m] = today.slice(0, 7).split("-").map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  return { start: `${today.slice(0, 7)}-01`, end: `${today.slice(0, 7)}-${String(lastDay).padStart(2, "0")}` };
 }
 
 const WaIcon = () => (
@@ -30,26 +38,47 @@ export default async function OwnerClients({
 
   let query = supabase
     .from("clients")
-    .select("id, phone, created_at", { count: "exact" })
+    .select("id, phone, name, created_at", { count: "exact" })
     .order("created_at", { ascending: false });
 
-  if (params.q) query = query.ilike("phone", `%${params.q}%`);
+  if (params.q) {
+    const term = params.q.replace(/[,%]/g, "");
+    if (term) query = query.or(`name.ilike.%${term}%,phone.ilike.%${term}%`);
+  }
 
   const { data: clients, count } = await query.range(from, to);
+
+  const { start, end } = currentMonthBounds();
 
   const enriched = await Promise.all(
     (clients ?? []).map(async (c) => {
       const { data: cvData } = await supabase
         .from("client_vehicles")
-        .select("vehicles(plate, type)")
+        .select("vehicles(id, plate, type)")
         .eq("client_id", c.id);
       const { count: washCount } = await supabase
         .from("wash_records")
         .select("*", { count: "exact", head: true })
         .eq("client_id", c.id);
+
+      const vehicles = (cvData ?? []).map((row: any) => row.vehicles).filter(Boolean);
+
+      const vehiclesWithMembership = await Promise.all(
+        vehicles.map(async (v: any) => {
+          const { count: membershipCount } = await supabase
+            .from("wash_records")
+            .select("*", { count: "exact", head: true })
+            .eq("vehicle_id", v.id)
+            .eq("is_membership", true)
+            .gte("wash_date", start)
+            .lte("wash_date", end);
+          return { ...v, membershipCount: membershipCount ?? 0 };
+        })
+      );
+
       return {
         ...c,
-        vehicles: (cvData ?? []).map((row: any) => row.vehicles).filter(Boolean),
+        vehicles: vehiclesWithMembership,
         washCount: washCount ?? 0,
       };
     })
@@ -88,7 +117,7 @@ export default async function OwnerClients({
           </svg>
           <input
             type="search" name="q" defaultValue={params.q ?? ""}
-            className="input-field" placeholder="Buscar por teléfono..."
+            className="input-field" placeholder="Buscar por nombre o teléfono..."
             style={{ paddingLeft: "2.75rem" }}
           />
         </div>
@@ -100,16 +129,18 @@ export default async function OwnerClients({
             {enriched.map((c) => (
               <div key={c.id} className="card">
                 <div className="flex items-start justify-between mb-1">
-                  <a href={waHref(c.phone)} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 font-bold text-sm"
-                    style={{ color: "#25d366", textDecoration: "none" }}>
-                    <WaIcon />
-                    {c.phone}
-                  </a>
+                  <ClientNameEditor clientId={c.id} initialName={c.name} />
                   <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
                     {new Date(c.created_at).toLocaleDateString("es-AR")}
                   </span>
                 </div>
+
+                <a href={waHref(c.phone)} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-xs mb-2 w-fit"
+                  style={{ color: "#25d366", textDecoration: "none" }}>
+                  <WaIcon />
+                  {c.phone}
+                </a>
 
                 <p className="text-xs mb-3" style={{ color: "var(--text-secondary)" }}>
                   {c.washCount} {c.washCount === 1 ? "lavado" : "lavados"} registrados
@@ -117,10 +148,21 @@ export default async function OwnerClients({
 
                 {c.vehicles.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
-                    {c.vehicles.map((v: any, i: number) => (
-                      <span key={i} className="text-xs px-2.5 py-1 rounded-lg font-semibold"
+                    {c.vehicles.map((v: any) => (
+                      <span key={v.id} className="text-xs px-2.5 py-1 rounded-lg font-semibold flex items-center gap-1"
                         style={{ background: "var(--bg-elevated)", color: "var(--text-primary)", border: "1px solid var(--border-subtle)" }}>
                         {typeLabel[v.type] ?? "🚘"} {v.plate}
+                        {v.membershipCount > 0 && (
+                          <span
+                            className="text-xs font-bold px-1.5 py-0.5 rounded-full"
+                            style={{
+                              background: v.membershipCount >= 4 ? "rgba(239,68,68,0.15)" : "rgba(139,92,246,0.15)",
+                              color: v.membershipCount >= 4 ? "var(--danger)" : "#a78bfa",
+                            }}
+                          >
+                            ✨{v.membershipCount}/4
+                          </span>
+                        )}
                       </span>
                     ))}
                   </div>

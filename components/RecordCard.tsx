@@ -118,6 +118,11 @@ export default function RecordCard({
         <p className="font-bold text-base tracking-widest" style={{ color: "var(--text-primary)" }}>
           {vehicle?.plate ?? "—"}
         </p>
+        {client?.name?.trim() && (
+          <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+            {client.name}
+          </p>
+        )}
         {client?.phone ? (
           <a
             href={`https://wa.me/${toWhatsApp(client.phone)}`}

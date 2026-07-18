@@ -13,7 +13,7 @@ export default async function EditRecordPage({
 
   const { data: record } = await supabase
     .from("wash_records")
-    .select(`*, clients(phone), vehicles(plate, type), profiles(name)`)
+    .select(`*, clients(phone, name), vehicles(plate, type), profiles(name)`)
     .eq("id", id)
     .single();
 

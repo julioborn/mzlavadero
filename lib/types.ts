@@ -13,6 +13,7 @@ export interface Profile {
 export interface Client {
   id: string;
   phone: string;
+  name: string | null;
   created_at: string;
 }
 
@@ -56,6 +57,9 @@ export interface AppSettings {
   id: number;
   membership_price_auto: number;
   membership_price_camioneta: number;
+  price_auto: number;
+  price_camioneta: number;
+  price_moto: number;
   updated_at: string;
 }
 

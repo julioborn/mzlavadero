@@ -167,6 +167,18 @@ values (1, 0, 0)
 on conflict (id) do nothing;
 
 -- ============================================================
+-- MIGRACIONES — Membresía por vehículo + nombre de cliente
+-- ============================================================
+
+-- Nombre opcional para el cliente (antes solo se identificaba por teléfono)
+alter table clients add column if not exists name text;
+
+-- Precios por defecto de lavado normal (sin membresía) por tipo de vehículo
+alter table app_settings add column if not exists price_auto int not null default 0;
+alter table app_settings add column if not exists price_camioneta int not null default 0;
+alter table app_settings add column if not exists price_moto int not null default 0;
+
+-- ============================================================
 -- MIGRACIONES — Insumos / Gastos
 -- ============================================================
 

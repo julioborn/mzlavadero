@@ -10,6 +10,7 @@ export default function EditWashForm({ record }: { record: any }) {
   const router = useRouter();
 
   const [phone, setPhone] = useState(record.clients?.phone ?? "");
+  const [clientName, setClientName] = useState(record.clients?.name ?? "");
   const [washDate, setWashDate] = useState(record.wash_date);
   const [washTime, setWashTime] = useState(record.wash_time.slice(0, 5));
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(record.payment_method);
@@ -44,19 +45,23 @@ export default function EditWashForm({ record }: { record: any }) {
     if (phone.trim() && phone.trim() !== record.clients?.phone) {
       let { data: existingClient } = await supabase
         .from("clients")
-        .select("id")
+        .select("id, name")
         .eq("phone", phone.trim())
         .single();
       if (!existingClient) {
         const { data: newClient, error: cErr } = await supabase
           .from("clients")
-          .insert({ phone: phone.trim() })
-          .select("id")
+          .insert({ phone: phone.trim(), name: clientName.trim() || null })
+          .select("id, name")
           .single();
         if (cErr || !newClient) { setError("Error al guardar el cliente."); setLoading(false); return; }
         existingClient = newClient;
+      } else if (clientName.trim() && clientName.trim() !== existingClient.name) {
+        await supabase.from("clients").update({ name: clientName.trim() }).eq("id", existingClient.id);
       }
       clientId = existingClient.id;
+    } else if (clientId && clientName.trim() !== (record.clients?.name ?? "")) {
+      await supabase.from("clients").update({ name: clientName.trim() || null }).eq("id", clientId);
     }
 
     // Upsert vehicle
@@ -113,16 +118,29 @@ export default function EditWashForm({ record }: { record: any }) {
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
 
-      {/* Phone */}
-      <div>
-        <label className="label">Teléfono del cliente</label>
-        <input
-          type="tel"
-          inputMode="numeric"
-          className="input-field"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-        />
+      {/* Phone & Name */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label">Teléfono del cliente</label>
+          <input
+            type="tel"
+            inputMode="numeric"
+            className="input-field"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="label">
+            Nombre <span style={{ color: "var(--text-secondary)", fontWeight: 400 }}>(opcional)</span>
+          </label>
+          <input
+            type="text"
+            className="input-field"
+            value={clientName}
+            onChange={(e) => setClientName(e.target.value)}
+          />
+        </div>
       </div>
 
       {/* Date & Time */}
