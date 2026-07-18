@@ -193,7 +193,7 @@ export default function NewWashForm({
     return price > 0 ? String(price) : "";
   }
 
-  async function checkVehicleMembership(vehId: string, date: string) {
+  async function checkVehicleMembership(vehId: string, date: string, type: VehicleType) {
     const { start, end } = getMonthBounds(date);
     const { data } = await supabase
       .from("wash_records")
@@ -207,19 +207,15 @@ export default function NewWashForm({
     setMembershipCount(count);
 
     if (count > 0 && count < 4) {
-      // Lavado 2°, 3° o 4° del mes para este vehículo → incluido, $0
+      // Lavado 2°, 3° o 4° del mes para este vehículo → sigue con membresía, misma cuota individual
       setIsMembership(true);
-      setAmount("0");
+      setAmount(getMembershipAutoFill(type));
     } else if (count >= 4) {
       // Ya usó los 4 lavados de membresía del mes → se cobra como lavado normal
       setIsMembership(false);
-      if (vehicleType) {
-        const fill = getDefaultPriceFill(vehicleType as VehicleType);
-        setAmount(fill);
-      } else if (amount === "0") {
-        setAmount("");
-      }
+      setAmount(getDefaultPriceFill(type));
     }
+    // count === 0: primer lavado del mes → se deja a elección manual del empleado
   }
 
   async function selectVehicle(v: LinkedVehicle) {
@@ -227,7 +223,7 @@ export default function NewWashForm({
     setVehicleType(v.type);
     setVehicleId(v.id);
     setShowPlateDrop(false);
-    await checkVehicleMembership(v.id, washDate);
+    await checkVehicleMembership(v.id, washDate, v.type);
   }
 
   function selectClient(result: SearchResult) {
@@ -257,11 +253,9 @@ export default function NewWashForm({
   }
 
   function getMembershipAutoFill(t: VehicleType): string {
-    // Si ya tiene lavados con membresía este mes → mensualidad ya pagada → $0
-    // Si es el primer lavado del mes con membresía → cobrar mensualidad
-    if (membershipCount !== null && membershipCount > 0) return "0";
+    // El precio de membresía se divide en 4 cuotas iguales, una por cada lavado del mes
     const price = t === "auto" ? membershipPrices.auto : t === "camioneta" ? membershipPrices.camioneta : 0;
-    return price > 0 ? String(price) : "";
+    return price > 0 ? String(Math.round(price / 4)) : "";
   }
 
   function handleVehicleTypeSelect(t: VehicleType) {
@@ -309,7 +303,7 @@ export default function NewWashForm({
       if (v) {
         setVehicleId(v.id);
         setVehicleType(v.type);
-        await checkVehicleMembership(v.id, washDate);
+        await checkVehicleMembership(v.id, washDate, v.type);
 
         if (!phone.trim()) {
           const { data: cv } = await supabase
@@ -760,8 +754,7 @@ export default function NewWashForm({
           {amount && (
             <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
               = ${parseInt(amount).toLocaleString("es-AR")}
-              {isMembership && membershipCount !== null && membershipCount > 0 && " · Lavado incluido en membresía"}
-              {isMembership && (membershipCount === null || membershipCount === 0) && " · Mensualidad"}
+              {isMembership && " · Cuota de membresía (1/4 del abono mensual)"}
             </p>
           )}
         </div>

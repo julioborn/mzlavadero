@@ -88,7 +88,7 @@ export default function MembershipSettingsForm({ initialAuto, initialCamioneta }
         className="text-xs px-3 py-2.5 rounded-xl"
         style={{ background: "rgba(139,92,246,0.08)", color: "#a78bfa", border: "1px solid rgba(139,92,246,0.2)" }}
       >
-        ✨ El cliente paga la mensualidad en el <strong>primer lavado del mes</strong>. Los lavados 2°, 3° y 4° se registran en <strong>$0</strong>. Máximo 4 lavados por mes con membresía.
+        ✨ Este precio se divide en <strong>4 cuotas iguales</strong> (uno por cada lavado del mes, por vehículo). Ej: mensualidad $60.000 → cada lavado con membresía queda registrado en $15.000. El 5° lavado del mes ya se cobra como lavado normal. Para que la división sea exacta, usá precios múltiplos de 4.
       </div>
 
       {error && (
