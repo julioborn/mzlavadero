@@ -1,5 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import ClientNameEditor from "@/components/ClientNameEditor";
+import VehicleEditor from "@/components/VehicleEditor";
+import AddVehicleForm from "@/components/AddVehicleForm";
+import MembershipPaymentStatus from "@/components/MembershipPaymentStatus";
 import Link from "next/link";
 
 const PAGE_SIZE = 15;
@@ -11,11 +14,12 @@ function waHref(phone: string): string {
   return `https://wa.me/54${local}`;
 }
 
-function currentMonthBounds(): { start: string; end: string } {
+function currentMonthInfo(): { start: string; end: string; ym: string } {
   const today = new Date().toLocaleDateString("sv", { timeZone: "America/Argentina/Buenos_Aires" });
-  const [y, m] = today.slice(0, 7).split("-").map(Number);
+  const ym = today.slice(0, 7);
+  const [y, m] = ym.split("-").map(Number);
   const lastDay = new Date(y, m, 0).getDate();
-  return { start: `${today.slice(0, 7)}-01`, end: `${today.slice(0, 7)}-${String(lastDay).padStart(2, "0")}` };
+  return { start: `${ym}-01`, end: `${ym}-${String(lastDay).padStart(2, "0")}`, ym };
 }
 
 const WaIcon = () => (
@@ -27,68 +31,154 @@ const WaIcon = () => (
 export default async function OwnerClients({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; q?: string }>;
+  searchParams: Promise<{ page?: string; q?: string; membership?: string }>;
 }) {
   const params = await searchParams;
   const page = Math.max(1, parseInt(params.page ?? "1"));
   const from = (page - 1) * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
+  const membershipFilter = params.membership === "1";
 
   const supabase = await createClient();
+  const { start, end, ym } = currentMonthInfo();
+
+  // Búsqueda: nombre, teléfono o patente
+  let searchClientIds: string[] | null = null;
+  if (params.q) {
+    const term = params.q.replace(/[,%]/g, "");
+    if (term) {
+      const { data: directMatches } = await supabase
+        .from("clients")
+        .select("id")
+        .or(`name.ilike.%${term}%,phone.ilike.%${term}%`);
+
+      const { data: vehicleMatches } = await supabase.from("vehicles").select("id").ilike("plate", `%${term}%`);
+      const vehicleIds = (vehicleMatches ?? []).map((v) => v.id);
+
+      let viaPlateClientIds: string[] = [];
+      if (vehicleIds.length) {
+        const { data: cvMatches } = await supabase.from("client_vehicles").select("client_id").in("vehicle_id", vehicleIds);
+        viaPlateClientIds = (cvMatches ?? []).map((r) => r.client_id);
+      }
+
+      searchClientIds = [...new Set([...(directMatches ?? []).map((c) => c.id), ...viaPlateClientIds])];
+      if (searchClientIds.length === 0) searchClientIds = ["none"];
+    }
+  }
+
+  // Filtro: solo clientes con al menos un vehículo con membresía activa este mes
+  let membershipClientIds: string[] | null = null;
+  if (membershipFilter) {
+    const { data: mWashes } = await supabase
+      .from("wash_records")
+      .select("vehicle_id")
+      .eq("is_membership", true)
+      .gte("wash_date", start)
+      .lte("wash_date", end);
+    const activeVehicleIds = [...new Set((mWashes ?? []).map((r) => r.vehicle_id))];
+
+    let cIds: string[] = [];
+    if (activeVehicleIds.length) {
+      const { data: cv } = await supabase.from("client_vehicles").select("client_id").in("vehicle_id", activeVehicleIds);
+      cIds = [...new Set((cv ?? []).map((r) => r.client_id))];
+    }
+    membershipClientIds = cIds.length ? cIds : ["none"];
+  }
 
   let query = supabase
     .from("clients")
     .select("id, phone, name, created_at", { count: "exact" })
     .order("created_at", { ascending: false });
 
-  if (params.q) {
-    const term = params.q.replace(/[,%]/g, "");
-    if (term) query = query.or(`name.ilike.%${term}%,phone.ilike.%${term}%`);
-  }
+  if (searchClientIds) query = query.in("id", searchClientIds);
+  if (membershipClientIds) query = query.in("id", membershipClientIds);
 
   const { data: clients, count } = await query.range(from, to);
 
-  const { start, end } = currentMonthBounds();
+  const clientsList = clients ?? [];
 
-  const enriched = await Promise.all(
-    (clients ?? []).map(async (c) => {
-      const { data: cvData } = await supabase
-        .from("client_vehicles")
-        .select("vehicles(id, plate, type)")
-        .eq("client_id", c.id);
-      const { count: washCount } = await supabase
-        .from("wash_records")
-        .select("*", { count: "exact", head: true })
-        .eq("client_id", c.id);
+  // Vehículos vinculados a los clientes de esta página
+  const clientIds = clientsList.map((c) => c.id);
+  const vehiclesByClient = new Map<string, { id: string; plate: string; type: string }[]>();
+  if (clientIds.length) {
+    const { data: cvRows } = await supabase
+      .from("client_vehicles")
+      .select("client_id, vehicles(id, plate, type)")
+      .in("client_id", clientIds);
+    (cvRows ?? []).forEach((row: any) => {
+      if (!row.vehicles) return;
+      const list = vehiclesByClient.get(row.client_id) ?? [];
+      list.push(row.vehicles);
+      vehiclesByClient.set(row.client_id, list);
+    });
+  }
 
-      const vehicles = (cvData ?? []).map((row: any) => row.vehicles).filter(Boolean);
+  const allVehicleIds = [...new Set([...vehiclesByClient.values()].flat().map((v) => v.id))];
 
-      const vehiclesWithMembership = await Promise.all(
-        vehicles.map(async (v: any) => {
-          const { count: membershipCount } = await supabase
-            .from("wash_records")
-            .select("*", { count: "exact", head: true })
-            .eq("vehicle_id", v.id)
-            .eq("is_membership", true)
-            .gte("wash_date", start)
-            .lte("wash_date", end);
-          return { ...v, membershipCount: membershipCount ?? 0 };
-        })
-      );
+  // Conteo de membresía este mes, por vehículo (batch, evita N+1)
+  const membershipCountByVehicle = new Map<string, number>();
+  if (allVehicleIds.length) {
+    const { data: mRows } = await supabase
+      .from("wash_records")
+      .select("vehicle_id")
+      .eq("is_membership", true)
+      .gte("wash_date", start)
+      .lte("wash_date", end)
+      .in("vehicle_id", allVehicleIds);
+    (mRows ?? []).forEach((r) => {
+      membershipCountByVehicle.set(r.vehicle_id, (membershipCountByVehicle.get(r.vehicle_id) ?? 0) + 1);
+    });
+  }
 
-      return {
-        ...c,
-        vehicles: vehiclesWithMembership,
-        washCount: washCount ?? 0,
-      };
-    })
-  );
+  // Pagos de membresía de este mes, por vehículo
+  const paymentByVehicle = new Map<string, { amount: number; payment_method: "efectivo" | "transferencia"; paid_date: string }>();
+  if (allVehicleIds.length) {
+    const { data: pRows } = await supabase
+      .from("membership_payments")
+      .select("vehicle_id, amount, payment_method, paid_date")
+      .eq("month", ym)
+      .in("vehicle_id", allVehicleIds);
+    (pRows ?? []).forEach((p) => {
+      paymentByVehicle.set(p.vehicle_id, { amount: Number(p.amount), payment_method: p.payment_method, paid_date: p.paid_date });
+    });
+  }
+
+  // Precios de membresía (para sugerir el monto al registrar un pago)
+  const { data: settings } = await supabase
+    .from("app_settings")
+    .select("membership_price_auto, membership_price_camioneta")
+    .eq("id", 1)
+    .single();
+
+  // Wash counts por cliente
+  const washCountByClient = new Map<string, number>();
+  if (clientIds.length) {
+    const { data: wRows } = await supabase.from("wash_records").select("client_id").in("client_id", clientIds);
+    (wRows ?? []).forEach((r) => {
+      washCountByClient.set(r.client_id, (washCountByClient.get(r.client_id) ?? 0) + 1);
+    });
+  }
+
+  const enriched = clientsList.map((c) => ({
+    ...c,
+    vehicles: vehiclesByClient.get(c.id) ?? [],
+    washCount: washCountByClient.get(c.id) ?? 0,
+  }));
 
   const totalPages = Math.ceil((count ?? 0) / PAGE_SIZE);
-  const typeLabel: Record<string, string> = { auto: "🚗", camioneta: "🚙", moto: "🏍️" };
+  const hasFilters = !!(params.q || membershipFilter);
+
+  function buildUrl(overrides: Record<string, string | undefined>) {
+    const p: Record<string, string> = { page: "1" };
+    if (params.q) p.q = params.q;
+    if (membershipFilter) p.membership = "1";
+    Object.assign(p, overrides);
+    const filtered = Object.fromEntries(Object.entries(p).filter(([, v]) => v !== undefined && v !== "")) as Record<string, string>;
+    return `/owner/clients?${new URLSearchParams(filtered)}`;
+  }
 
   return (
-    <div className="px-4 py-6 max-w-2xl mx-auto">
+    <div className="px-4 py-6 max-w-2xl mx-auto mb-6">
 
       {/* Header */}
       <div className="flex items-center gap-3 mb-5">
@@ -108,7 +198,8 @@ export default async function OwnerClients({
       </div>
 
       {/* Search */}
-      <form method="GET" action="/owner/clients" className="mb-5">
+      <form method="GET" action="/owner/clients" className="mb-3">
+        {membershipFilter && <input type="hidden" name="membership" value="1" />}
         <div className="relative">
           <svg className="absolute left-3.5 top-1/2 -translate-y-1/2" width="16" height="16"
             viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"
@@ -117,11 +208,31 @@ export default async function OwnerClients({
           </svg>
           <input
             type="search" name="q" defaultValue={params.q ?? ""}
-            className="input-field" placeholder="Buscar por nombre o teléfono..."
+            className="input-field" placeholder="Buscar por nombre, teléfono o patente..."
             style={{ paddingLeft: "2.75rem" }}
           />
         </div>
       </form>
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-2 mb-5">
+        <Link href={buildUrl({ membership: membershipFilter ? undefined : "1" })}
+          className="px-3 py-1.5 rounded-full text-xs font-semibold"
+          style={{
+            background: membershipFilter ? "rgba(139,92,246,0.15)" : "var(--bg-surface)",
+            color: membershipFilter ? "#a78bfa" : "var(--text-secondary)",
+            border: `1px solid ${membershipFilter ? "rgba(139,92,246,0.3)" : "transparent"}`,
+          }}>
+          ✨ Con membresía activa
+        </Link>
+        {hasFilters && (
+          <Link href="/owner/clients"
+            className="px-3 py-1.5 rounded-full text-xs font-semibold"
+            style={{ background: "rgba(248,113,113,0.1)", color: "var(--danger)" }}>
+            × Limpiar
+          </Link>
+        )}
+      </div>
 
       {enriched.length > 0 ? (
         <>
@@ -146,27 +257,38 @@ export default async function OwnerClients({
                   {c.washCount} {c.washCount === 1 ? "lavado" : "lavados"} registrados
                 </p>
 
-                {c.vehicles.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {c.vehicles.map((v: any) => (
-                      <span key={v.id} className="text-xs px-2.5 py-1 rounded-lg font-semibold flex items-center gap-1"
-                        style={{ background: "var(--bg-elevated)", color: "var(--text-primary)", border: "1px solid var(--border-subtle)" }}>
-                        {typeLabel[v.type] ?? "🚘"} {v.plate}
-                        {v.membershipCount > 0 && (
-                          <span
-                            className="text-xs font-bold px-1.5 py-0.5 rounded-full"
-                            style={{
-                              background: v.membershipCount >= 4 ? "rgba(239,68,68,0.15)" : "rgba(139,92,246,0.15)",
-                              color: v.membershipCount >= 4 ? "var(--danger)" : "#a78bfa",
-                            }}
-                          >
-                            ✨{v.membershipCount}/4
-                          </span>
+                <div className="flex flex-col gap-2">
+                  {c.vehicles.map((v: any) => {
+                    const membershipCount = membershipCountByVehicle.get(v.id) ?? 0;
+                    const payment = paymentByVehicle.get(v.id) ?? null;
+                    const defaultAmount =
+                      v.type === "auto" ? settings?.membership_price_auto ?? 0 : v.type === "camioneta" ? settings?.membership_price_camioneta ?? 0 : 0;
+                    return (
+                      <div key={v.id}>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <VehicleEditor clientId={c.id} vehicle={v} />
+                          {membershipCount > 0 && (
+                            <span
+                              className="text-xs font-bold px-1.5 py-0.5 rounded-full"
+                              style={{
+                                background: membershipCount >= 4 ? "rgba(239,68,68,0.15)" : "rgba(139,92,246,0.15)",
+                                color: membershipCount >= 4 ? "var(--danger)" : "#a78bfa",
+                              }}
+                            >
+                              ✨{membershipCount}/4
+                            </span>
+                          )}
+                        </div>
+                        {membershipCount > 0 && (
+                          <MembershipPaymentStatus vehicleId={v.id} month={ym} payment={payment} defaultAmount={defaultAmount} />
                         )}
-                      </span>
-                    ))}
+                      </div>
+                    );
+                  })}
+                  <div>
+                    <AddVehicleForm clientId={c.id} />
                   </div>
-                )}
+                </div>
               </div>
             ))}
           </div>
@@ -174,7 +296,7 @@ export default async function OwnerClients({
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-3 pb-2">
               {page > 1 && (
-                <Link href={`/owner/clients?page=${page - 1}${params.q ? `&q=${params.q}` : ""}`}
+                <Link href={buildUrl({ page: String(page - 1) })}
                   className="px-4 py-2 rounded-xl text-sm font-medium"
                   style={{ background: "var(--bg-surface)", color: "var(--text-primary)", border: "1px solid var(--border-subtle)" }}>
                   ← Anterior
@@ -184,7 +306,7 @@ export default async function OwnerClients({
                 {page} / {totalPages}
               </span>
               {page < totalPages && (
-                <Link href={`/owner/clients?page=${page + 1}${params.q ? `&q=${params.q}` : ""}`}
+                <Link href={buildUrl({ page: String(page + 1) })}
                   className="px-4 py-2 rounded-xl text-sm font-medium"
                   style={{ background: "var(--bg-surface)", color: "var(--text-primary)", border: "1px solid var(--border-subtle)" }}>
                   Siguiente →
@@ -206,7 +328,7 @@ export default async function OwnerClients({
             </svg>
           </div>
           <p className="font-medium text-sm">
-            {params.q ? "Sin resultados para esa búsqueda." : "No hay clientes registrados."}
+            {hasFilters ? "Sin resultados para esa búsqueda." : "No hay clientes registrados."}
           </p>
         </div>
       )}
